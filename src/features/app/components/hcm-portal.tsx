@@ -150,6 +150,18 @@ export function HcmPortal() {
   }, [refreshSession]);
 
   useEffect(() => {
+    if (!session?.user) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("view") !== "assistant") return;
+    const timer = window.setTimeout(() => {
+      setAssistantContext("overview");
+      setActiveView("assistant");
+      window.history.replaceState(null, "", window.location.pathname);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [session?.user]);
+
+  useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(""), 3600);
     return () => window.clearTimeout(timer);
