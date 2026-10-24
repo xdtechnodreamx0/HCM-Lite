@@ -7,6 +7,8 @@ import { requireRole, requireSelfOrStaff } from "@/server/auth/authorization";
 import { collections } from "@/server/db/collections";
 import { createLogin } from "@/server/services/auth.service";
 import { writeAudit } from "@/server/services/audit.service";
+import { getEmailProvider } from "@/lib/env";
+import { issueEmailVerification } from "@/server/services/email.service";
 import type { SessionUser } from "@/lib/types";
 
 export const employeeSchema = z.object({
@@ -102,14 +104,17 @@ export async function getEmployee(actor: SessionUser, employeeId: string) {
 }
 
 export async function createEmployee(actor: SessionUser, raw: unknown) {
-  requireRole(actor, ["HR"]);
+  requireRole(actor, ["ADMIN", "HR"]);
   const input = employeeSchema.parse(raw);
   const db = await collections();
   const department = await db.departments.findOne({ id: input.departmentId, companyId: actor.companyId });
   const designation = await db.designations.findOne({ id: input.designationId, companyId: actor.companyId });
   if (!department || !designation) throw new AppError(422, "Choose a department and designation from this company.");
   const existing = await db.users.findOne({ email: input.email.toLowerCase() });
-  if (existing) throw new AppError(409, "A login with this email already exists.");
+  const signupAccount = existing?.signupPending === true && existing.role === "EMPLOYEE" && !existing.employeeId && !existing.active
+    ? existing
+    : null;
+  if (existing && !signupAccount) throw new AppError(409, "A login with this email already exists.");
   const id = createId("emp");
   const now = new Date();
   const record = {
@@ -135,15 +140,24 @@ export async function createEmployee(actor: SessionUser, raw: unknown) {
   await db.employees.insertOne(record);
   let createdUserId: string | undefined;
   try {
-    const login = await createLogin({
-      actor,
-      email: record.email,
-      name: record.name,
-      role: "EMPLOYEE",
-      employeeId: id,
-    });
-    createdUserId = login.id;
-    await db.employees.updateOne({ id, companyId: actor.companyId }, { $set: { userId: login.id } });
+    let login: { id: string; temporaryPassword: string } | null = null;
+    if (signupAccount) {
+      const linked = await db.users.updateOne(
+        { id: signupAccount.id, companyId: actor.companyId, signupPending: true, active: false },
+        { $set: { employeeId: id, role: "EMPLOYEE", active: true, signupPending: false, sessionVersion: Number(signupAccount.sessionVersion ?? 0) + 1, updatedAt: now } },
+      );
+      if (linked.modifiedCount !== 1) throw new AppError(409, "This sign-up request changed. Refresh the page and try again.");
+      createdUserId = signupAccount.id;
+      await db.employees.updateOne({ id, companyId: actor.companyId }, { $set: { userId: signupAccount.id } });
+      if (getEmailProvider() && signupAccount.emailVerificationRequired && !signupAccount.emailVerifiedAt) {
+        const company = await db.companies.findOne({ id: actor.companyId }, { projection: { name: 1 } });
+        await issueEmailVerification({ id: signupAccount.id, companyId: actor.companyId, email: signupAccount.email, name: signupAccount.name, company: String(company?.name ?? "your company") });
+      }
+    } else {
+      login = await createLogin({ actor, email: record.email, name: record.name, role: "EMPLOYEE", employeeId: id });
+      createdUserId = login.id;
+      await db.employees.updateOne({ id, companyId: actor.companyId }, { $set: { userId: login.id } });
+    }
     await db.salaryStructures.insertOne({
       id: createId("sal"), companyId: actor.companyId, employeeId: id,
       basicPaisa: record.basicPaisa, effectiveFrom: input.joiningDate,
@@ -153,12 +167,14 @@ export async function createEmployee(actor: SessionUser, raw: unknown) {
       actor, companyId: actor.companyId, action: "employee.create", entity: "employee", entityId: id,
       after: { employeeCode: record.employeeCode, name: record.name, departmentId: record.departmentId, status: record.status },
     });
-    return { employeeId: id, userId: login.id, temporaryPassword: login.temporaryPassword };
+    return { employeeId: id, userId: createdUserId, temporaryPassword: login?.temporaryPassword ?? null, accountLinked: Boolean(signupAccount) };
   } catch (error) {
     await Promise.all([
       db.employees.deleteOne({ id, companyId: actor.companyId }),
       db.salaryStructures.deleteMany({ companyId: actor.companyId, employeeId: id }),
-      createdUserId ? db.users.deleteOne({ id: createdUserId, companyId: actor.companyId }) : Promise.resolve(),
+      signupAccount && createdUserId
+        ? db.users.updateOne({ id: createdUserId, companyId: actor.companyId }, { $set: { active: false, signupPending: true, sessionVersion: Number(signupAccount.sessionVersion ?? 0) + 2 }, $unset: { employeeId: "", emailVerificationTokenHash: "", emailVerificationExpiresAt: "" } })
+        : createdUserId ? db.users.deleteOne({ id: createdUserId, companyId: actor.companyId }) : Promise.resolve(),
       db.auditLogs.deleteMany({ companyId: actor.companyId, action: "employee.create", entityId: id }),
     ]);
     throw error;
@@ -280,7 +296,7 @@ export async function dryRunEmployeeCsv(actor: SessionUser, text: string) {
 export async function importEmployeeCsv(actor: SessionUser, text: string) {
   const result = await validateCsvRows(actor, text);
   if (result.issues.length) return { imported: 0, rowCount: result.rowCount, valid: false, issues: result.issues };
-  const imported: Array<{ row: number; employeeCode: string; temporaryPassword: string }> = [];
+  const imported: Array<{ row: number; employeeCode: string; temporaryPassword: string | null }> = [];
   const issues: CsvIssue[] = [];
   for (const [index, row] of result.validRows.entries()) {
     try {

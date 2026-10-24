@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity, Bell, Building2, CalendarDays, ChevronDown, CircleHelp,
-  FileClock, LayoutDashboard, LogOut, Menu, Megaphone, MessageCircle, Search,
+  FileClock, LayoutDashboard, LogOut, Menu, Megaphone, MessageCircle, Search, Sparkles,
   ShieldCheck, Users, WalletCards, X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -16,7 +16,7 @@ import type {
 import { apiMessage } from "@/lib/errors";
 import { AuthGate, PasswordChangeGate } from "@/features/app/components/auth-gate";
 import { PortalView } from "@/features/app/components/portal-views";
-import { ThemePicker } from "@/features/app/components/theme-provider";
+import { ThemeDescription, ThemePicker } from "@/features/app/components/theme-provider";
 
 type ViewId = "overview" | "organization" | "users" | "employees" | "attendance" | "leave" | "payroll" | "announcements" | "audit" | "assistant" | "profile";
 type PortalData = {
@@ -82,6 +82,7 @@ export function HcmPortal() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [activeView, setActiveView] = useState<ViewId>("overview");
+  const [assistantContext, setAssistantContext] = useState<ViewId>("overview");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [globalSearch, setGlobalSearch] = useState("");
@@ -213,7 +214,7 @@ export function HcmPortal() {
         <div className="side-section-label">WORKSPACE</div>
         <nav className="side-nav" aria-label="Main navigation">
           {nav.map(({ id, label, icon: Icon }) => (
-            <button key={id} className={`nav-item ${activeView === id ? "nav-active" : ""}`} onClick={() => { setActiveView(id); setMobileOpen(false); }}>
+            <button key={id} className={`nav-item ${activeView === id ? "nav-active" : ""}`} onClick={() => { if (id === "assistant" && activeView !== "assistant") setAssistantContext(activeView); setActiveView(id); setMobileOpen(false); }}>
               <Icon size={17} strokeWidth={1.85} /><span>{label}</span>
               {id === "leave" && currentUser.role !== "EMPLOYEE" && data.dashboard?.pendingLeaves ? <span className="nav-count">{data.dashboard.pendingLeaves}</span> : null}
               {id === "announcements" && data.notifications.some((item) => !item.read) ? <span className="nav-unread" /> : null}
@@ -221,8 +222,9 @@ export function HcmPortal() {
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="help-card"><span className="help-icon"><CircleHelp size={16} /></span><strong>Need a hand?</strong><p>Visit the quick guide for your role.</p><button onClick={() => setActiveView("assistant")}>Open help <span>↗</span></button></div>
+          <div className="help-card"><span className="help-icon"><CircleHelp size={16} /></span><strong>Need a hand?</strong><p>Get quick, role-aware help for this workspace.</p><button onClick={() => { setAssistantContext(activeView); setActiveView("assistant"); }}>Open help <span>↗</span></button></div>
           <div className="sidebar-theme-row"><span>Appearance</span><ThemePicker compact /></div>
+          <ThemeDescription />
           <div className="side-user">
             <span className="user-avatar">{initials(currentUser.name)}</span>
             <span className="user-meta"><strong>{currentUser.name}</strong><small>{currentUser.email}</small></span>
@@ -248,22 +250,43 @@ export function HcmPortal() {
         </header>
         <section className="content-area">
           {refreshing && <div className="sync-indicator" role="status"><span /> Syncing latest records</div>}
+          <QuickGuide view={activeView} role={currentUser.role} onAsk={() => { setAssistantContext(activeView); setActiveView("assistant"); }} />
           <PortalView
             view={activeView}
             user={currentUser}
             company={session.company}
             data={data}
             peopleSearchSeed={peopleSearchSeed}
+            assistantContext={assistantContext}
             refresh={() => currentUser ? loadData(currentUser.role) : Promise.resolve()}
             notify={setToast}
             goTo={setActiveView}
           />
           <footer className="workspace-footer"><span>People.works <i>·</i> {session.company?.name ?? "Private workspace"}</span><span><ShieldCheck size={13} /> Company-scoped access <i>·</i> Local workspace</span></footer>
         </section>
+        <button className="floating-assistant" type="button" aria-label="Ask People.works AI for help about this page" onClick={() => { if (activeView !== "assistant") setAssistantContext(activeView); setActiveView("assistant"); window.scrollTo({ top: 0, behavior: "smooth" }); }}><Sparkles size={16} /><span>Ask AI</span></button>
         {toast && <div className="toast-message" role="status"><span className="toast-check">✓</span>{toast}<button aria-label="Dismiss notification" onClick={() => setToast("")}><X size={14} /></button></div>}
       </main>
     </div>
   );
+}
+
+function QuickGuide({ view, role, onAsk }: { view: ViewId; role: string; onAsk: () => void }) {
+  const guide: Record<ViewId, { title: string; detail: string }> = {
+    overview: { title: "Quick guide", detail: role === "EMPLOYEE" ? "Use your overview to check this week, your leave balance, and recent team updates." : "Start with today’s people, attendance, and leave indicators; choose a section in the sidebar to take action." },
+    organization: { title: "Company setup", detail: "Review your office calendar, departments, designations, and leave policies before adding more people." },
+    users: { title: "Account access", detail: "Create HR or Admin logins here. New employee sign-ups stay pending until you add a People profile using the same email." },
+    employees: { title: "People directory", detail: "Search by name, email, or employee code. Open a profile to review the details permitted for your role." },
+    attendance: { title: "Attendance", detail: role === "EMPLOYEE" ? "Check in when your workday starts and check out when it ends. Use a correction request if a punch needs review." : "Filter the attendance board by date or department, then review pending correction requests." },
+    leave: { title: "Leave requests", detail: role === "EMPLOYEE" ? "Choose a leave type, select work dates, and add a short reason. Your request stays pending until HR reviews it." : "Review pending requests, check the dates and reason, then add a short decision note." },
+    payroll: { title: "Payroll", detail: role === "HR" ? "Prepare a draft for the period, inspect deductions, and finalize only after review." : role === "ADMIN" ? "Review payroll status and audit history. HR prepares the payroll draft and finalizes it after review." : "Open a finalized payslip to review your own pay details." },
+    announcements: { title: "Team updates", detail: role === "EMPLOYEE" ? "Read company updates and follow links for the actions your team shared." : "Publish a clear title and short message; updates appear in the employee workspace and notifications." },
+    audit: { title: "Audit trail", detail: "Use this read-only history to review who changed a company record and when." },
+    assistant: { title: "Role-aware help", detail: "Ask about this page or your workspace. The assistant uses only data your account can access; it does not capture your computer screen." },
+    profile: { title: "Your profile", detail: "Keep your phone and address current. You can edit only your own contact details here." },
+  };
+  const message = guide[view];
+  return <aside className="page-guide" aria-label="Quick instructions"><span className="page-guide-icon"><CircleHelp size={16} /></span><div><strong>{message.title}</strong><p>{message.detail}</p></div><button type="button" onClick={onAsk}>Ask AI about this <span>↗</span></button></aside>;
 }
 
 function roleName(role: string) {

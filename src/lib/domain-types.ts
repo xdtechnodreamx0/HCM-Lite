@@ -147,6 +147,9 @@ export type UserRecord = {
   role: Role;
   employeeId?: string;
   active: boolean;
+  signupPending?: boolean;
+  emailVerificationRequired?: boolean;
+  emailVerifiedAt?: string;
   forcePasswordChange: boolean;
   createdAt: string;
 };

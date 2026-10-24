@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { ArrowRight, Building2, Eye, EyeOff, ShieldCheck, Sparkles, UserRoundCheck } from "lucide-react";
 import { apiRequest, jsonBody } from "@/lib/api-client";
 import type { SessionPayload } from "@/lib/domain-types";
@@ -117,6 +118,8 @@ export function AuthGate({ initialized, onReady }: { initialized: boolean; onRea
             <button className="button button-primary button-wide" disabled={loading} type="submit">{loading ? "Please wait…" : activeMode === "setup" ? "Create workspace" : "Sign in"}<ArrowRight size={16} /></button>
           {showResend && <button className="text-button resend-verification" type="button" disabled={resending || !form.email} onClick={() => void resendVerification()}>{resending ? "Sending link…" : "Resend email verification link"}<ArrowRight size={14} /></button>}
           </form>
+          {activeMode === "login" && <div className="auth-links"><Link href="/forgot-password">Forgot password?</Link><Link href="/signup">Request employee access</Link></div>}
+          <Link className="guest-demo-link" href="/demo">Explore the read-only guest dashboard<ArrowRight size={14} /></Link>
           {!initialized && activeMode === "setup" ? <p className="auth-footnote">Your first Admin account is permanent. Add HR and employee logins once you are inside.</p> : null}
         </div>
         <div className="auth-footer"><span><ShieldCheck size={13} /> People-first, made practical.</span><span>HCM Lite <i>·</i> Your private workspace</span></div>

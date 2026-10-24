@@ -24,6 +24,32 @@ First Admin setup and new HR/employee login creation send a secure, expiring ver
 
 Never commit `.env.local`, email keys, or API credentials. For a public service, set `APP_BASE_URL` to its exact HTTPS address so verification links point to the deployed site.
 
+The sign-in page links to employee sign-up and password recovery. New sign-ups are inactive employee requests; they cannot select their own role and must be linked to a People profile by Admin/HR. Password-reset links are single-use, expire after 30 minutes, and invalidate existing sessions. Both signup verification and real reset email delivery require `RESEND_API_KEY` plus a verified `EMAIL_FROM` sender; without them, password reset explains the missing setup and new employee requests remain inactive until linked.
+
+## Local demo workspace
+
+The demo uses a separate MongoDB database named `hcm_lite_demo` and a second app on `http://localhost:3001`. It does not read or reset the existing `hcm_lite` company database. Start the database if it is not already running, then run these commands from this folder in a PowerShell terminal:
+
+```powershell
+docker compose up -d mongodb
+$env:MONGODB_URI = "mongodb://127.0.0.1:27017"
+$env:MONGODB_DB = "hcm_lite_demo"
+npm run seed:demo
+Remove-Item Env:MONGODB_URI
+Remove-Item Env:MONGODB_DB
+docker compose --profile demo up -d --build app-demo
+```
+
+Open `http://localhost:3001/demo` for the fictional guest dashboard or `http://localhost:3001` to sign in. Demo usernames are `admin@northstar.demo`, `hr@northstar.demo`, and `employee@northstar.demo`; each uses password `12345`. These credentials are intentionally weak and are only for a loopback demo; never expose this demo service publicly. The seed script refuses a non-empty database unless it finds its own single marked demo company.
+
+Stop the demo service with `docker compose --profile demo stop app-demo`. Stop the whole local stack with `docker compose down` when finished. MongoDB data remains in the named local volume.
+
+## Appearance, quick help, and AI
+
+Peaceful mode uses softer green colors, a slow ambient background, and restrained shadows. Some people may find that look calmer, but comfort varies and it is not a health treatment. Disco mode adds colorful gradients and slow card/button glow. Both respect the operating system’s reduced-motion preference. Day and Night change the light/dark palette. A short appearance note is available beside the theme selector in the signed-in workspace.
+
+Every signed-in page includes a quick guide and an Ask AI shortcut. The assistant receives the current HCM page label and answers with read-only, role-scoped company tools: Employees can ask only about their own attendance, leave, and pay; HR and Admin can ask approved team/company questions. It does not capture or inspect the computer screen, and it cannot approve requests or modify records. A Gemini key is optional; without it the app displays its honest disabled state. If you configure Gemini, AI prompts and authorized tool results are sent to Google’s Gemini service.
+
 For faster hot-reload development, run `docker compose stop app`, then `docker compose up -d mongodb`, then `npm ci` and `npm run dev -- --hostname 127.0.0.1` in a VS Code terminal. The host development server uses `MONGODB_URI=mongodb://127.0.0.1:27017` from `.env.local`. Stop it with Ctrl+C. Do not run both app modes on port 3000 at the same time.
 
 Setup is permanent for a given database. To start over, point the app to a different empty database rather than deleting records from a shared or production database.

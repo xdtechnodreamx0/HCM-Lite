@@ -10,7 +10,7 @@ import { EmptyState, FormError, FormSuccess, Monogram, PageHeading, Panel, Prima
 type EmployeePage = { items: EmployeeRecord[]; page: number; pageSize: number; total: number };
 type CsvIssue = { row: number; field: string; reason: string };
 type CsvPreview = { valid: boolean; rowCount: number; validRows: number; issues: CsvIssue[] };
-type CsvImport = { imported: number; rowCount: number; valid: boolean; importedRows?: Array<{ row: number; employeeCode: string; temporaryPassword: string }>; issues: CsvIssue[] };
+type CsvImport = { imported: number; rowCount: number; valid: boolean; importedRows?: Array<{ row: number; employeeCode: string; temporaryPassword: string | null }>; issues: CsvIssue[] };
 
 export function PeopleView({ employees, organization, role, refresh, notify, searchSeed = "" }: {
   employees: EmployeeRecord[];
@@ -43,7 +43,7 @@ export function PeopleView({ employees, organization, role, refresh, notify, sea
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [saving, setSaving] = useState(false);
-  const canCreate = role === "HR";
+  const canCreate = role === "HR" || role === "ADMIN";
   const pages = Math.max(1, Math.ceil(total / 20));
 
   useEffect(() => {
@@ -60,7 +60,7 @@ export function PeopleView({ employees, organization, role, refresh, notify, sea
     event.preventDefault(); setSaving(true); setError(""); setSuccess(""); setTemporaryPassword("");
     const values = new FormData(event.currentTarget);
     try {
-      const result = await apiRequest<{ temporaryPassword: string }>("/api/employees", {
+      const result = await apiRequest<{ temporaryPassword: string | null; accountLinked?: boolean }>("/api/employees", {
         method: "POST",
         body: jsonBody({
           employeeCode: String(values.get("employeeCode")), name: String(values.get("name")), email: String(values.get("email")),
@@ -69,8 +69,8 @@ export function PeopleView({ employees, organization, role, refresh, notify, sea
           joiningDate: String(values.get("joiningDate")), status: String(values.get("status")), basicSalary: Number(values.get("basicSalary")),
         }),
       });
-      setTemporaryPassword(result.temporaryPassword);
-      setSuccess("Employee and login created. Share this temporary password securely; it is shown only now.");
+      setTemporaryPassword(result.temporaryPassword ?? "");
+      setSuccess(result.accountLinked ? "Employee profile linked to the existing sign-up. They can use the password they created." : "Employee and login created. Share this temporary password securely; it is shown only now.");
       event.currentTarget.reset();
       setPage(1); setQuery(""); setQueryInput("");
       await refresh();
@@ -103,7 +103,7 @@ export function PeopleView({ employees, organization, role, refresh, notify, sea
   const filteredRows = useMemo(() => rows, [rows]);
 
   return <>
-    <PageHeading eyebrow="PEOPLE DIRECTORY" title="People" description="A thoughtful overview of the people behind the work." action={canCreate ? <PrimaryButton onClick={() => { setShowForm((visible) => !visible); setError(""); setSuccess(""); }}><Plus size={16} /> Add employee</PrimaryButton> : <span className="role-view-chip"><Users size={14} />Company directory</span>} />
+    <PageHeading eyebrow="PEOPLE DIRECTORY" title="People" description="A thoughtful overview of the people behind the work. New team profiles get Employee access by default." action={canCreate ? <PrimaryButton onClick={() => { setShowForm((visible) => !visible); setError(""); setSuccess(""); }}><Plus size={16} /> Add employee</PrimaryButton> : <span className="role-view-chip"><Users size={14} />Company directory</span>} />
     {showForm && canCreate && <Panel title="Add a team member" subtitle="A login is created with a one-time temporary password.">
       <form className="form-grid" onSubmit={createEmployee}>
         <label className="field-label">Employee code<input name="employeeCode" required minLength={2} maxLength={32} placeholder="NW-024" /></label>
@@ -146,7 +146,7 @@ export function PeopleView({ employees, organization, role, refresh, notify, sea
         {csvImport && <div className={csvImport.valid ? "inline-alert success-alert" : "inline-alert error-alert"} role="status">
           <strong>{csvImport.imported} of {csvImport.rowCount} employees imported</strong>
           <span>Temporary passwords appear only here. Share each one privately and have the employee change it at first sign-in.</span>
-          {csvImport.importedRows && csvImport.importedRows.length > 0 && <div className="table-scroll"><table className="data-table"><thead><tr><th>ROW</th><th>EMPLOYEE CODE</th><th>TEMPORARY PASSWORD</th></tr></thead><tbody>{csvImport.importedRows.map((row) => <tr key={`${row.row}-${row.employeeCode}`}><td>{row.row}</td><td>{row.employeeCode}</td><td><code>{row.temporaryPassword}</code></td></tr>)}</tbody></table></div>}
+          {csvImport.importedRows && csvImport.importedRows.length > 0 && <div className="table-scroll"><table className="data-table"><thead><tr><th>ROW</th><th>EMPLOYEE CODE</th><th>LOGIN DETAILS</th></tr></thead><tbody>{csvImport.importedRows.map((row) => <tr key={`${row.row}-${row.employeeCode}`}><td>{row.row}</td><td>{row.employeeCode}</td><td><code>{row.temporaryPassword ?? "Existing sign-up linked"}</code></td></tr>)}</tbody></table></div>}
           {csvImport.issues.length > 0 && <ul className="csv-issues">{csvImport.issues.map((issue, index) => <li key={`${issue.row}-${issue.field}-${index}`}>Row {issue.row} · {issue.field}: {issue.reason}</li>)}</ul>}
         </div>}
       </div>}
@@ -180,21 +180,22 @@ function SalaryEditor({ employee, onSaved, notify }: { employee: EmployeeRecord;
   return <form className="salary-edit-form" onSubmit={save}><strong>Update salary</strong><label className="field-label">Basic monthly salary (PKR)<input required type="number" min="1" max="100000000" step="0.01" value={basicSalary} onChange={(event) => setBasicSalary(event.target.value)} /></label><label className="field-label">Effective from<input required type="date" value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} /></label><FormError>{error}</FormError><PrimaryButton disabled={saving}>{saving ? "Saving…" : "Save salary change"}<ArrowRight size={14} /></PrimaryButton></form>;
 }
 
-export function UsersView({ users, refresh, notify }: { users: UserRecord[]; refresh: () => Promise<void>; notify: (message: string) => void }) {
+export function UsersView({ users, actorId, refresh, notify }: { users: UserRecord[]; actorId: string; refresh: () => Promise<void>; notify: (message: string) => void }) {
   const [error, setError] = useState("");
   const [credential, setCredential] = useState("");
   const [busyId, setBusyId] = useState("");
-  async function addHr(event: FormEvent<HTMLFormElement>) {
+  async function addStaff(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(""); setCredential("");
     const values = new FormData(event.currentTarget);
     try {
-      const result = await apiRequest<{ temporaryPassword: string }>("/api/users", { method: "POST", body: jsonBody({ name: String(values.get("name")), email: String(values.get("email")) }) });
-      setCredential(result.temporaryPassword); event.currentTarget.reset(); await refresh(); notify("HR login created.");
+      const role = String(values.get("role"));
+      const result = await apiRequest<{ temporaryPassword: string }>("/api/users", { method: "POST", body: jsonBody({ name: String(values.get("name")), email: String(values.get("email")), role }) });
+      setCredential(result.temporaryPassword); event.currentTarget.reset(); await refresh(); notify(`${role === "ADMIN" ? "Admin" : "HR"} login created.`);
     } catch (reason) { setError(apiMessage(reason)); }
   }
   async function resetPassword(user: UserRecord) {
     setBusyId(user.id); setError("");
-    try { const result = await apiRequest<{ temporaryPassword: string }>(`/api/users/${user.id}`, { method: "POST" }); setCredential(`${user.name}: ${result.temporaryPassword}`); notify("A new temporary password was created."); }
+    try { const result = await apiRequest<{ emailSent?: boolean; verificationSent?: boolean }>(`/api/users/${user.id}`, { method: "POST" }); notify(result.verificationSent ? `Verification link sent to ${user.email}.` : `Password reset link sent to ${user.email}.`); }
     catch (reason) { setError(apiMessage(reason)); }
     finally { setBusyId(""); }
   }
@@ -204,16 +205,23 @@ export function UsersView({ users, refresh, notify }: { users: UserRecord[]; ref
     catch (reason) { setError(apiMessage(reason)); }
     finally { setBusyId(""); }
   }
+  async function changeRole(user: UserRecord, role: UserRecord["role"]) {
+    if (user.id === actorId) return;
+    setBusyId(user.id); setError("");
+    try { await apiRequest(`/api/users/${user.id}`, { method: "PATCH", body: jsonBody({ role }) }); await refresh(); notify(`${user.name} now has ${role === "ADMIN" ? "Admin" : role === "HR" ? "HR" : "Employee"} access.`); }
+    catch (reason) { setError(apiMessage(reason)); }
+    finally { setBusyId(""); }
+  }
   return <>
-    <PageHeading eyebrow="ACCESS & SECURITY" title="User access" description="Create and maintain the HR accounts that keep your people operations moving." />
+    <PageHeading eyebrow="ACCESS & SECURITY" title="User access" description="Choose who can manage company settings, people operations, or their own employee workspace." />
     <div className="module-grid">
-      <Panel title="Create an HR login" subtitle="New HR teammates receive a one-time password and change it at first sign-in." className="span-two">
-        <form className="inline-create-user" onSubmit={addHr}><label className="field-label">Full name<input required name="name" minLength={2} placeholder="HR teammate" /></label><label className="field-label">Work email<input required type="email" name="email" placeholder="hr@company.com" /></label><PrimaryButton><Plus size={15} /> Create HR account</PrimaryButton></form>
+      <Panel title="Create an Admin or HR login" subtitle="Employee accounts are created with their team profile in People. New accounts receive a one-time password." className="span-two">
+        <form className="inline-create-user" onSubmit={addStaff}><label className="field-label">Full name<input required name="name" minLength={2} placeholder="Teammate name" /></label><label className="field-label">Work email<input required type="email" name="email" placeholder="teammate@company.com" /></label><label className="field-label">Workspace role<select name="role" defaultValue="HR"><option value="HR">HR · People operations</option><option value="ADMIN">Admin · Full company access</option></select></label><PrimaryButton><Plus size={15} /> Create login</PrimaryButton></form>
         <FormError>{error}</FormError>
         {credential && <div className="temp-credential"><BadgeCheck size={16} /><span>Temporary password</span><code>{credential}</code><button type="button" onClick={() => void navigator.clipboard?.writeText(credential.split(": ").at(-1) ?? credential)}>Copy</button></div>}
       </Panel>
       <Panel title="Company accounts" subtitle={`${users.length} accounts provisioned from this workspace.`} className="span-two">
-        {users.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>ACCOUNT</th><th>ROLE</th><th>STATUS</th><th>ACCESS</th><th /></tr></thead><tbody>{users.map((user) => <tr key={user.id}><td><div className="person-cell"><Monogram name={user.name} /><span><strong>{user.name}</strong><small><Mail size={11} /> {user.email}</small></span></div></td><td>{user.role}</td><td><StatusPill value={user.active ? "Active" : "Inactive"} /></td><td>{user.forcePasswordChange ? <span className="small-text attention-text">Temporary password pending</span> : <span className="small-text muted">Password set</span>}</td><td><div className="row-actions"><button className="button button-quiet button-small" disabled={busyId === user.id} onClick={() => void resetPassword(user)}>Reset password</button><button className="button button-quiet button-small" disabled={busyId === user.id || user.role === "ADMIN"} onClick={() => void toggleUser(user)}>{user.active ? "Deactivate" : "Reactivate"}</button></div></td></tr>)}</tbody></table></div> : <EmptyState title="No accounts yet" description="Your Admin account is the first account in this company." icon={UserRound} />}
+        {users.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>ACCOUNT</th><th>ROLE</th><th>STATUS</th><th>ACCESS</th><th /></tr></thead><tbody>{users.map((user) => <tr key={user.id}><td><div className="person-cell"><Monogram name={user.name} /><span><strong>{user.name}{user.id === actorId ? " · You" : ""}</strong><small><Mail size={11} /> {user.email}</small></span></div></td><td><select aria-label={`Role for ${user.name}`} className="role-select" value={user.role} disabled={busyId === user.id || user.id === actorId || user.signupPending} onChange={(event) => void changeRole(user, event.target.value as UserRecord["role"])}><option value="EMPLOYEE">Employee</option><option value="HR">HR</option><option value="ADMIN">Admin</option></select></td><td><StatusPill value={user.signupPending ? "Signup pending" : user.active ? "Active" : "Inactive"} /></td><td><span className="small-text muted">{user.signupPending ? "Add their employee profile using this email." : user.emailVerificationRequired && !user.emailVerifiedAt ? "Email verification pending" : user.forcePasswordChange ? "Temporary password pending" : "Password set"}</span></td><td><div className="row-actions"><button className="button button-quiet button-small" disabled={busyId === user.id || !user.active} onClick={() => void resetPassword(user)}>Send reset link</button><button className="button button-quiet button-small" disabled={busyId === user.id || user.role === "ADMIN" || user.signupPending} onClick={() => void toggleUser(user)}>{user.active ? "Deactivate" : "Reactivate"}</button></div></td></tr>)}</tbody></table></div> : <EmptyState title="No accounts yet" description="Your Admin account is the first account in this company." icon={UserRound} />}
       </Panel>
     </div>
   </>;

@@ -49,7 +49,7 @@ export function ThemePicker({ compact = false }: { compact?: boolean }) {
     <label className={`theme-picker ${compact ? "theme-picker-compact" : ""}`}>
       <Palette size={15} aria-hidden="true" />
       <span className="sr-only">Display theme</span>
-      <select aria-label="Display theme" value={value.theme} onChange={(event) => value.setTheme(event.target.value as ThemeName)}>
+      <select aria-label="Display theme" title={themeDescription[value.theme]} value={value.theme} onChange={(event) => value.setTheme(event.target.value as ThemeName)}>
         <option value="day">Day mode</option>
         <option value="night">Night mode</option>
         <option value="peaceful">Peaceful mode</option>
@@ -58,4 +58,17 @@ export function ThemePicker({ compact = false }: { compact?: boolean }) {
       <ThemeIcon size={14} aria-hidden="true" />
     </label>
   );
+}
+
+const themeDescription: Record<ThemeName, string> = {
+  day: "Balanced light colors for daytime work.",
+  night: "Dark surfaces for a dimmer workspace.",
+  peaceful: "Softer greens and slow ambient color movement. Some people may find this calmer; comfort varies.",
+  disco: "Bright gradients and slow glow effects for a more playful workspace.",
+};
+
+export function ThemeDescription() {
+  const value = useContext(ThemeContext);
+  if (!value) throw new Error("ThemeDescription must be rendered inside ThemeProvider.");
+  return <p className="theme-description" aria-live="polite">{themeDescription[value.theme]} Animations respect your device’s reduced-motion setting.</p>;
 }

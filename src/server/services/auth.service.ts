@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { AppError } from "@/lib/errors";
-import { createTemporaryPassword } from "@/lib/ids";
+import { createId, createTemporaryPassword } from "@/lib/ids";
 import { hashPassword, verifyPassword } from "@/server/auth/passwords";
 import { requireRole } from "@/server/auth/authorization";
 import {
@@ -13,13 +13,49 @@ import { collections } from "@/server/db/collections";
 import { rateLimit } from "@/server/security/rate-limit";
 import { writeAudit } from "@/server/services/audit.service";
 import { getEmailProvider } from "@/lib/env";
-import { issueEmailVerification } from "@/server/services/email.service";
+import { issueEmailVerification, issuePasswordResetEmail } from "@/server/services/email.service";
 import type { Role, SessionUser } from "@/lib/types";
 
 export const loginSchema = z.object({
   email: z.email(),
   password: z.string().min(1),
 });
+
+export const signupSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+  email: z.email().trim().toLowerCase(),
+  password: z.string().min(10).max(100),
+}).strict();
+
+export async function requestEmployeeSignup(raw: unknown, ip: string) {
+  const input = signupSchema.parse(raw);
+  const emailHash = createHash("sha256").update(input.email).digest("hex");
+  const ipHash = createHash("sha256").update(ip || "unknown").digest("hex");
+  await Promise.all([
+    rateLimit(`signup:email:${emailHash}`, 3, 60 * 60 * 1000),
+    rateLimit(`signup:ip:${ipHash}`, 10, 60 * 60 * 1000),
+  ]);
+  const db = await collections();
+  const company = await db.companies.findOne({ setupKey: "primary" });
+  if (!company) throw new AppError(409, "The company workspace is not ready for employee sign-up yet.");
+  if (await db.users.findOne({ email: input.email }, { projection: { _id: 1 } })) return { accepted: true };
+  const user = {
+    id: createId("usr"), companyId: String(company.id), email: input.email, name: input.name,
+    role: "EMPLOYEE" as const, passwordHash: await hashPassword(input.password), active: false,
+    signupPending: true, forcePasswordChange: false, sessionVersion: 1, createdAt: new Date(),
+  };
+  await db.users.insertOne(user);
+  try {
+    if (getEmailProvider()) {
+      await issueEmailVerification({ id: user.id, companyId: user.companyId, email: user.email, name: user.name, company: String(company.name) });
+    }
+    await writeAudit({ companyId: user.companyId, action: "user.signup.request", entity: "user", entityId: user.id, after: { email: user.email, status: "pending_admin_link" } });
+    return { accepted: true };
+  } catch (error) {
+    await db.users.deleteOne({ id: user.id, companyId: user.companyId });
+    throw error;
+  }
+}
 
 export async function login(input: z.infer<typeof loginSchema>, ip: string) {
   const data = loginSchema.parse(input);
@@ -140,6 +176,7 @@ export async function setUserActive(actor: SessionUser, userId: string, active: 
   const user = await db.users.findOne({ id: userId, companyId: actor.companyId });
   if (!user) throw new AppError(404, "User not found.");
   if (user.role === "ADMIN") throw new AppError(403, "Admin accounts cannot be deactivated here.");
+  if (active && user.signupPending) throw new AppError(422, "Link this sign-up request to an employee profile before enabling access.");
   await db.users.updateOne(
     { id: userId, companyId: actor.companyId },
     { $set: { active, sessionVersion: user.sessionVersion + 1 } },
@@ -153,22 +190,44 @@ export async function setUserActive(actor: SessionUser, userId: string, active: 
   });
 }
 
+export async function setUserRole(actor: SessionUser, userId: string, role: Role) {
+  requireRole(actor, ["ADMIN"]);
+  if (userId === actor.id) throw new AppError(403, "You cannot change your own account role.");
+  const db = await collections();
+  const user = await db.users.findOne({ id: userId, companyId: actor.companyId });
+  if (!user) throw new AppError(404, "User not found.");
+  if (user.role === role) return;
+  if (user.role === "ADMIN" && role !== "ADMIN") {
+    const activeAdmins = await db.users.countDocuments({ companyId: actor.companyId, role: "ADMIN", active: true });
+    if (user.active && activeAdmins <= 1) throw new AppError(422, "Keep at least one active Admin account in the company.");
+  }
+  if (role === "EMPLOYEE") {
+    if (!user.employeeId) throw new AppError(422, "Create or link this person’s employee profile before assigning Employee access.");
+    const employee = await db.employees.findOne({ id: user.employeeId, companyId: actor.companyId, userId: user.id });
+    if (!employee) throw new AppError(422, "This login is not linked to an employee profile.");
+  }
+  const result = await db.users.updateOne(
+    { id: userId, companyId: actor.companyId, sessionVersion: user.sessionVersion },
+    { $set: { role, sessionVersion: user.sessionVersion + 1, updatedAt: new Date() } },
+  );
+  if (result.modifiedCount !== 1) throw new AppError(409, "This account changed. Refresh and try again.");
+  await writeAudit({ actor, companyId: actor.companyId, action: "user.role.change", entity: "user", entityId: userId, before: { role: user.role }, after: { role } });
+}
+
 export async function resetUserPassword(actor: SessionUser, userId: string) {
   requireRole(actor, ["ADMIN"]);
   const db = await collections();
   const user = await db.users.findOne({ id: userId, companyId: actor.companyId });
   if (!user) throw new AppError(404, "User not found.");
-  const temporaryPassword = createTemporaryPassword();
-  await db.users.updateOne(
-    { id: userId, companyId: actor.companyId },
-    {
-      $set: {
-        passwordHash: await hashPassword(temporaryPassword),
-        forcePasswordChange: true,
-        sessionVersion: user.sessionVersion + 1,
-      },
-    },
-  );
+  if (!user.active || user.signupPending) throw new AppError(422, "Link and activate this employee account before sending a password reset.");
+  const provider = getEmailProvider();
+  if (!provider) throw new AppError(503, "Password reset email is not configured. Add RESEND_API_KEY and EMAIL_FROM to .env.local.");
+  const company = await db.companies.findOne({ id: actor.companyId }, { projection: { name: 1 } });
+  if (user.emailVerificationRequired && !user.emailVerifiedAt) {
+    await issueEmailVerification({ id: user.id, companyId: actor.companyId, email: user.email, name: user.name, company: String(company?.name ?? "your company") });
+    return { verificationSent: true };
+  }
+  await issuePasswordResetEmail({ id: user.id, companyId: actor.companyId, email: user.email, name: user.name, company: String(company?.name ?? "your company") });
   await writeAudit({
     actor,
     companyId: actor.companyId,
@@ -176,7 +235,7 @@ export async function resetUserPassword(actor: SessionUser, userId: string) {
     entity: "user",
     entityId: userId,
   });
-  return { temporaryPassword };
+  return { emailSent: true };
 }
 
 export async function listUsers(actor: SessionUser) {
@@ -185,7 +244,7 @@ export async function listUsers(actor: SessionUser) {
   return db.users
     .find(
       { companyId: actor.companyId },
-      { projection: { _id: 0, id: 1, email: 1, name: 1, role: 1, employeeId: 1, active: 1, forcePasswordChange: 1, createdAt: 1 } },
+      { projection: { _id: 0, id: 1, email: 1, name: 1, role: 1, employeeId: 1, active: 1, signupPending: 1, emailVerificationRequired: 1, emailVerifiedAt: 1, forcePasswordChange: 1, createdAt: 1 } },
     )
     .sort({ createdAt: -1 })
     .toArray();

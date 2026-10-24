@@ -10,11 +10,12 @@ import { FormError, PageHeading, Panel, PrimaryButton } from "@/features/app/com
 type AiReply = { available: boolean; answer?: string; toolName?: string; prefill?: { leaveTypeCode: string; startDate: string; endDate: string; reason: string }; message?: string };
 type ChatLine = { role: "user" | "assistant"; content: string; toolName?: string };
 
-export function AssistantView({ role, dashboard, organization, company }: {
+export function AssistantView({ role, dashboard, organization, company, currentPage }: {
   role: NonNullable<SessionPayload["user"]>["role"];
   dashboard: DashboardPayload | null;
   organization: OrganizationPayload | null;
   company: SessionPayload["company"];
+  currentPage: string;
 }) {
   const [available, setAvailable] = useState<boolean | null>(null);
   const [message, setMessage] = useState("");
@@ -37,7 +38,7 @@ export function AssistantView({ role, dashboard, organization, company }: {
     event.preventDefault(); if (!message.trim()) return;
     const question = message.trim(); setMessage(""); setError(""); setBusy(true); setLines((current) => [...current, { role: "user", content: question }]);
     try {
-      const result = await apiRequest<AiReply>("/api/ai/chat", { method: "POST", body: jsonBody({ mode: "assistant", message: question }) });
+      const result = await apiRequest<AiReply>("/api/ai/chat", { method: "POST", body: jsonBody({ mode: "assistant", message: question, contextPage: currentPage }) });
       setAvailable(result.available);
       setLines((current) => [...current, { role: "assistant", content: result.answer ?? result.message ?? "The assistant could not answer that request.", toolName: result.toolName }]);
     } catch (reason) { setError(apiMessage(reason)); }
@@ -77,7 +78,7 @@ export function AssistantView({ role, dashboard, organization, company }: {
   }
 
   return <>
-    <PageHeading eyebrow="PEOPLE. WORKS AI" title="AI assistant" description="Ask about your work, your team or company policy. Answers use only your authorized HCM data." action={<span className={`ai-status-chip ${available ? "ai-ready" : "ai-muted"}`}><span />{available === null ? "Checking setup" : available ? "AI connected" : "AI not configured"}</span>} />
+    <PageHeading eyebrow="PEOPLE. WORKS AI" title="AI assistant" description={`Page-aware help for ${currentPage.replaceAll("-", " ")}. Answers use only HCM data permitted for your account; this app does not capture your computer screen.`} action={<span className={`ai-status-chip ${available ? "ai-ready" : "ai-muted"}`}><span />{available === null ? "Checking setup" : available ? "AI connected" : "AI not configured"}</span>} />
     {available === false && <div className="ai-unavailable"><span className="ai-unavailable-icon"><CircleHelp size={18} /></span><div><strong>Connect a Gemini API key to enable answers.</strong><p>Set <code>GEMINI_API_KEY</code> in the server environment, then restart the app. Without a key this panel will not invent answers.</p></div></div>}
     <div className="module-grid ai-grid">
       <Panel title="Ask your assistant" subtitle="Try a question about the HCM data you’re allowed to see." className="assistant-chat-panel span-two">
