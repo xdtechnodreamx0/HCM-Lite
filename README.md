@@ -4,24 +4,23 @@ People.works is a role-scoped human capital management app for one company. It u
 
 ## Requirements
 
-- Node.js 20.9 or newer and npm
-- A MongoDB database (local MongoDB or MongoDB Atlas)
-- A session secret with at least 32 characters
+- Docker Desktop (recommended for the full local app)
+- Optional for hot-reload development outside Docker: Node.js 20.9 or newer and npm
 - Optional: a Gemini API key to enable the AI assistant
 
-## Run locally
+## Run locally with Docker
 
-1. Install dependencies with `npm ci`.
-2. Copy `.env.example` to `.env.local`.
-3. Set `MONGODB_URI`, `MONGODB_DB`, and `SESSION_SECRET` in `.env.local`. Generate a fresh secret locally; do not reuse this sample text or commit the file.
-4. Set `APP_BASE_URL` to the exact origin used in your browser, usually `http://localhost:3000`.
-5. Optional: set `GEMINI_API_KEY`. Without it, the app shows an honest unavailable state and the rest of HCM works.
-6. Start with `npm run dev` and open `http://localhost:3000`.
-7. Complete the one-time Admin setup form. Then create HR/Employee accounts from **User access** or create employee accounts from **People**.
+1. Open this folder in VS Code and start Docker Desktop.
+2. Make sure `.env.local` exists. For a fresh checkout, copy `.env.example` to `.env.local` and set a unique `SESSION_SECRET` (at least 32 characters). Never commit `.env.local`.
+3. From the VS Code terminal at this folder, run `docker compose up --build -d`.
+4. Open `http://127.0.0.1:3000` in your browser. On a new empty database, create the first Admin. On an existing database, sign in with its existing account.
+5. To stop the app and database, run `docker compose down`. The named MongoDB volume remains, so your local data is preserved.
 
-Use a disposable development database for local experimentation. Setup is permanent for a given database; to start over, point the app to a different empty database rather than deleting records from a shared or production database.
+The app container connects to the MongoDB service over Docker's private network. Its published app and database ports are bound to loopback so they are available only on your computer.
 
-For local MongoDB, `docker compose up -d` starts a development-only instance bound to `127.0.0.1:27017` with a persistent local volume. Set `MONGODB_URI=mongodb://127.0.0.1:27017` and `MONGODB_DB=hcm_lite` in `.env.local`.
+For faster hot-reload development, run `docker compose stop app`, then `docker compose up -d mongodb`, then `npm ci` and `npm run dev -- --hostname 127.0.0.1` in a VS Code terminal. The host development server uses `MONGODB_URI=mongodb://127.0.0.1:27017` from `.env.local`. Stop it with Ctrl+C. Do not run both app modes on port 3000 at the same time.
+
+Setup is permanent for a given database. To start over, point the app to a different empty database rather than deleting records from a shared or production database.
 
 ## Main workflows
 
