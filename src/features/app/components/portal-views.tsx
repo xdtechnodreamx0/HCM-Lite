@@ -33,7 +33,7 @@ type PortalData = {
   users: UserRecord[];
 };
 
-export function PortalView({ view, user, company, data, refresh, notify, goTo }: {
+export function PortalView({ view, user, company, data, refresh, notify, goTo, peopleSearchSeed }: {
   view: ViewId;
   user: NonNullable<SessionPayload["user"]>;
   company: SessionPayload["company"];
@@ -41,16 +41,17 @@ export function PortalView({ view, user, company, data, refresh, notify, goTo }:
   refresh: () => Promise<void>;
   notify: (message: string) => void;
   goTo: (view: ViewId) => void;
+  peopleSearchSeed: { query: string; key: number } | null;
 }) {
   switch (view) {
     case "overview":
-      return <DashboardView dashboard={data.dashboard} user={user} onGo={goTo} />;
+      return <DashboardView dashboard={data.dashboard} announcements={data.announcements} user={user} onGo={goTo} />;
     case "organization":
       return <OrganizationView organization={data.organization} role={user.role} refresh={refresh} notify={notify} />;
     case "users":
       return <UsersView users={data.users} refresh={refresh} notify={notify} />;
     case "employees":
-      return <PeopleView employees={data.employees} organization={data.organization} role={user.role} refresh={refresh} notify={notify} />;
+      return <PeopleView key={peopleSearchSeed?.key ?? "people-directory"} employees={data.employees} organization={data.organization} role={user.role} refresh={refresh} notify={notify} searchSeed={peopleSearchSeed?.query ?? ""} />;
     case "attendance":
       return <AttendanceView attendance={data.attendance} corrections={data.corrections} organization={data.organization} company={company} role={user.role} refresh={refresh} notify={notify} />;
     case "leave":
@@ -66,7 +67,7 @@ export function PortalView({ view, user, company, data, refresh, notify, goTo }:
     case "profile":
       return <ProfileView employee={data.employees[0]} companyName={company?.name ?? ""} refresh={refresh} notify={notify} />;
     default:
-      return <DashboardView dashboard={data.dashboard} user={user} onGo={goTo} />;
+      return <DashboardView dashboard={data.dashboard} announcements={data.announcements} user={user} onGo={goTo} />;
   }
 }
 

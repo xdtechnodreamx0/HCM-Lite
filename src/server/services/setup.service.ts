@@ -8,6 +8,8 @@ import { setSessionCookie } from "@/server/auth/sessions";
 import { collections } from "@/server/db/collections";
 import { ensureIndexes } from "@/server/db/indexes";
 import { writeAudit } from "@/server/services/audit.service";
+import { getEmailProvider } from "@/lib/env";
+import { issueEmailVerification } from "@/server/services/email.service";
 
 const timezoneSchema = z.string().trim().min(1).max(100).refine((value) => {
   try { new Intl.DateTimeFormat("en", { timeZone: value }); return true; }
@@ -48,6 +50,7 @@ export async function setupCompany(input: z.infer<typeof setupSchema>) {
   const now = new Date();
   const companyId = createId("co");
   const userId = createId("usr");
+  const emailProvider = getEmailProvider();
   try {
     await db.companies.insertOne({
       id: companyId,
@@ -81,6 +84,7 @@ export async function setupCompany(input: z.infer<typeof setupSchema>) {
       active: true,
       forcePasswordChange: false,
       sessionVersion: 1,
+      ...(emailProvider ? { emailVerificationRequired: true } : {}),
       createdAt: now,
     });
     await db.leaveTypes.insertMany(
@@ -99,6 +103,9 @@ export async function setupCompany(input: z.infer<typeof setupSchema>) {
       entityId: companyId,
       after: { name: data.companyName, adminEmail: data.adminEmail.toLowerCase() },
     });
+    if (emailProvider) {
+      await issueEmailVerification({ id: userId, companyId, email: data.adminEmail.toLowerCase(), name: data.adminName, company: data.companyName });
+    }
   } catch (error) {
     await Promise.all([
       db.users.deleteMany({ companyId }),
@@ -108,7 +115,7 @@ export async function setupCompany(input: z.infer<typeof setupSchema>) {
     ]);
     throw error;
   }
-  await setSessionCookie({
+  if (!emailProvider) await setSessionCookie({
     id: userId,
     companyId,
     email: data.adminEmail.toLowerCase(),
@@ -117,5 +124,5 @@ export async function setupCompany(input: z.infer<typeof setupSchema>) {
     forcePasswordChange: false,
     sessionVersion: 1,
   });
-  return { companyId, userId };
+  return { companyId, userId, verificationRequired: Boolean(emailProvider) };
 }

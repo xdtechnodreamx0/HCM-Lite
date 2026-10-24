@@ -12,6 +12,9 @@ The multi-stage `Dockerfile` builds Next.js standalone output and runs as an unp
 - `APP_BASE_URL`: exact HTTPS service origin
 - `GEMINI_API_KEY`: optional; keep server-side only
 - `GEMINI_MODEL`: optional; defaults to `gemini-3.8-flash`
+- `RESEND_API_KEY` and `EMAIL_FROM`: optional pair for real first-Admin verification emails. `EMAIL_FROM` must be a sender on a domain verified with Resend.
+
+If enabling email, configure both Resend values together. First Admin setup and newly created HR/employee accounts get a 30-minute verification link, and cannot sign in until it is used. Resend requests are rate limited and the verification token is stored only as a hash. The email provider is optional; setting only one of the two values is a configuration error.
 
 Before publishing, run lint, typecheck, and production build, then build the Docker image and test `/api/health` against a disposable Atlas database. Add only the deployment's currently documented outbound IP ranges to the Atlas IP access list. Never use `0.0.0.0/0`.
 

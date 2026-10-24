@@ -4,16 +4,16 @@ Updated: 2026-10-25 (Asia/Karachi)
 
 ## Current state
 
-The full Next.js app, role-specific portal, MongoDB-backed service layer, Route Handlers, responsive CSS, and first-run Admin flow are present in `C:\dev\HCM-Lite`. This is a local implementation candidate, not a verified production deployment. As of 04:08 on 2026-10-25 Asia/Karachi, the brief's 05:00 deadline has not passed; no submission or public deployment is claimed.
+The full Next.js app, role-specific portal, MongoDB-backed service layer, Route Handlers, responsive CSS, theme modes, live people search, and optional Resend email verification are present in `C:\dev\HCM-Lite`. This is a local implementation candidate, not a verified production deployment. No submission or public deployment is claimed.
 
 ## Verification evidence
 
 | Check | Result | Evidence / limits |
 |---|---|---|
 | Source inventory | Reviewed | App, routes, services, configuration, and prompt pack reviewed; sensitive archive and partial download were excluded. |
-| `npm run typecheck` | Passed | 2026-10-25; `tsc --noEmit` completed with exit code 0 after employee-list query validation was fixed. |
-| `npm run lint` | Passed | 2026-10-25; ESLint completed with exit code 0 and no warnings after current UI/routes. |
-| `npm run build` | Passed | 2026-10-25; Next.js 16.4.3 production build completed, all 32 static pages generated, API routes listed. |
+| `npm run typecheck` | Passed | 2026-10-25; `tsc --noEmit` completed with exit code 0 after the UI and email verification changes. |
+| `npm run lint` | Passed | 2026-10-25; ESLint completed with exit code 0 and no warnings after the UI and email verification changes. |
+| `npm run build` | Passed | 2026-10-25; Next.js 16.4.3 production build completed, all 34 static pages generated, API routes listed. |
 | Unit/integration tests | Not run | No authored `*.test.*` or `*.spec.*` files found; do not interpret this as passing coverage. |
 | Local app + MongoDB | Running | `.env.local` contains a generated session secret; `docker compose ps` reports both app and MongoDB healthy. `GET /api/health` returned 200. `GET /api/session` returned `initialized: true` while unauthenticated; account and company data were not inspected. |
 | Browser/role walkthrough | Not verified | Local server is available at `http://127.0.0.1:3000`. The installation appears initialized; sign in with its existing Admin credentials. No credentials were created or reset in this task. |
@@ -23,6 +23,7 @@ The full Next.js app, role-specific portal, MongoDB-backed service layer, Route 
 | Dependency audit | Follow-up needed | Docker `npm ci` reported 3 vulnerabilities (1 moderate, 2 critical) in the full development dependency tree; `npm ci --omit=dev` reported 0 in the production-only tree. Detailed advisories have not been retrieved or fixed. |
 | GitHub repository and CI | Passed | Source was pushed to the private repository `https://github.com/xdtechnodreamx0/HCM-Lite`. Run `40141569249` passed `npm ci`, lint, typecheck, and production build. GitHub emitted non-blocking Node 20 action deprecation and runner-image notices. `.env.local` is ignored and was not pushed. |
 | Render/Atlas deployment | Not performed | No account, database credentials, or deployment URL was supplied. |
+| Email verification delivery | Implemented, not configured | Resend-backed HTML email, expiring hashed token, verification and resend routes are ready for initial Admin setup and new HR/employee accounts. A real verified sender and API key are still required; no email was sent during this work. |
 
 ## Known external setup
 

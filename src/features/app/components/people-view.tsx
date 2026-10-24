@@ -12,16 +12,17 @@ type CsvIssue = { row: number; field: string; reason: string };
 type CsvPreview = { valid: boolean; rowCount: number; validRows: number; issues: CsvIssue[] };
 type CsvImport = { imported: number; rowCount: number; valid: boolean; importedRows?: Array<{ row: number; employeeCode: string; temporaryPassword: string }>; issues: CsvIssue[] };
 
-export function PeopleView({ employees, organization, role, refresh, notify }: {
+export function PeopleView({ employees, organization, role, refresh, notify, searchSeed = "" }: {
   employees: EmployeeRecord[];
   organization: OrganizationPayload | null;
   role: NonNullable<SessionPayload["user"]>["role"];
   refresh: () => Promise<void>;
   notify: (message: string) => void;
+  searchSeed?: string;
 }) {
   const [rows, setRows] = useState(employees);
-  const [queryInput, setQueryInput] = useState("");
-  const [query, setQuery] = useState("");
+  const [queryInput, setQueryInput] = useState(searchSeed);
+  const [query, setQuery] = useState(searchSeed);
   const [statusFilter, setStatusFilter] = useState("all");
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [sortBy, setSortBy] = useState<"name" | "joiningDate" | "employeeCode">("name");

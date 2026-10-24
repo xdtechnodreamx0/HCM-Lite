@@ -18,6 +18,12 @@ People.works is a role-scoped human capital management app for one company. It u
 
 The app container connects to the MongoDB service over Docker's private network. Its published app and database ports are bound to loopback so they are available only on your computer.
 
+## Optional real email verification
+
+First Admin setup and new HR/employee login creation send a secure, expiring verification email when both `RESEND_API_KEY` and `EMAIL_FROM` are configured. Create a Resend account, add and verify a sending domain there, create an API key, then put the key and a verified sender such as `People.works <team@yourdomain.com>` in the ignored `.env.local` file. Restart the app with `docker compose up -d --force-recreate app`. Without these two settings, local setup stays password-based and does not pretend that an email was sent. Existing local setup is already complete; changing the settings will not trigger a new verification email for the current Admin.
+
+Never commit `.env.local`, email keys, or API credentials. For a public service, set `APP_BASE_URL` to its exact HTTPS address so verification links point to the deployed site.
+
 For faster hot-reload development, run `docker compose stop app`, then `docker compose up -d mongodb`, then `npm ci` and `npm run dev -- --hostname 127.0.0.1` in a VS Code terminal. The host development server uses `MONGODB_URI=mongodb://127.0.0.1:27017` from `.env.local`. Stop it with Ctrl+C. Do not run both app modes on port 3000 at the same time.
 
 Setup is permanent for a given database. To start over, point the app to a different empty database rather than deleting records from a shared or production database.

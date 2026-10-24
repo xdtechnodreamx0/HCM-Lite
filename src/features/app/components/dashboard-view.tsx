@@ -1,8 +1,8 @@
 import { Activity, ArrowRight, CalendarClock, CalendarDays, CheckCircle2, Clock3, UserRound, Users, WalletCards } from "lucide-react";
-import type { DashboardPayload, SessionPayload } from "@/lib/domain-types";
+import type { AnnouncementRecord, DashboardPayload, SessionPayload } from "@/lib/domain-types";
 import { EmptyState, MetricCard, PageHeading, Panel, ProgressBar, formatMoney } from "@/features/app/components/ui";
 
-export function DashboardView({ dashboard, user, onGo }: { dashboard: DashboardPayload | null; user: NonNullable<SessionPayload["user"]>; onGo: (view: "employees" | "attendance" | "leave" | "payroll" | "assistant") => void }) {
+export function DashboardView({ dashboard, announcements = [], user, onGo }: { dashboard: DashboardPayload | null; announcements?: AnnouncementRecord[]; user: NonNullable<SessionPayload["user"]>; onGo: (view: "employees" | "attendance" | "leave" | "payroll" | "assistant" | "announcements") => void }) {
   const name = user.name.split(" ")[0];
   const iconList = [Users, Activity, CalendarDays, Clock3, WalletCards];
   const greeting = new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 17 ? "Good afternoon" : "Good evening";
@@ -74,7 +74,15 @@ export function DashboardView({ dashboard, user, onGo }: { dashboard: DashboardP
         {dashboard.detail.topLatecomers?.length ? <ol className="latecomer-list">{dashboard.detail.topLatecomers.map((item, index) => <li key={item.employeeId}><span className="latecomer-rank">{index + 1}</span><span><strong>{item.name}</strong><small>{item.employeeCode} · {item.departmentName}</small></span><b>{item.lateCount}</b></li>)}</ol> : <EmptyState title="No late arrivals in this period" description="Late check-ins will appear here when recorded." icon={Clock3} />}
       </Panel>
     </div>}
+    {user.role !== "EMPLOYEE" && <div className="dashboard-news-row"><Panel title="Latest company updates" subtitle="Recent announcements shared with your team." action={<button className="panel-link" onClick={() => onGo("announcements")}>All updates <ArrowRight size={14} /></button>}>
+      {announcements.length ? <div className="dashboard-news-list">{announcements.slice(0, 3).map((item) => <article key={item.id}><span className="announcement-mark"><CalendarClock size={15} /></span><div><strong>{item.title}</strong><p>{item.body}</p><small>{item.authorName || "People team"} · {formatNewsDate(item.createdAt)}</small></div></article>)}</div> : <EmptyState title="No company updates yet" description="Published announcements will appear here for your team." icon={CalendarDays} />}
+    </Panel></div>}
   </>;
+}
+
+function formatNewsDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : new Intl.DateTimeFormat("en-PK", { dateStyle: "medium" }).format(date);
 }
 
 function BreakdownList({ items }: { items: Array<{ label: string; count: number }> }) {

@@ -23,7 +23,19 @@ export function getEnv() {
     nodeEnv: process.env.NODE_ENV || "development",
     geminiApiKey: process.env.GEMINI_API_KEY?.trim() || process.env.AI_API_KEY?.trim() || "",
     geminiModel: process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash",
+    resendApiKey: process.env.RESEND_API_KEY?.trim() || "",
+    emailFrom: process.env.EMAIL_FROM?.trim() || "",
   };
+}
+
+export function getEmailProvider() {
+  const env = getEnv();
+  if (Boolean(env.resendApiKey) !== Boolean(env.emailFrom)) {
+    throw new AppError(500, "Configure both RESEND_API_KEY and EMAIL_FROM to enable email verification.");
+  }
+  return env.resendApiKey && env.emailFrom
+    ? { apiKey: env.resendApiKey, from: env.emailFrom, baseUrl: env.appBaseUrl }
+    : null;
 }
 
 export function isTestDatabaseName(name: string) {

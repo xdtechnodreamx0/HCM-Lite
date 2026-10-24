@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity, Bell, Building2, CalendarDays, ChevronDown, CircleHelp,
-  FileClock, LayoutDashboard, LogOut, Menu, Megaphone, MessageCircle,
+  FileClock, LayoutDashboard, LogOut, Menu, Megaphone, MessageCircle, Search,
   ShieldCheck, Users, WalletCards, X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -16,6 +16,7 @@ import type {
 import { apiMessage } from "@/lib/errors";
 import { AuthGate, PasswordChangeGate } from "@/features/app/components/auth-gate";
 import { PortalView } from "@/features/app/components/portal-views";
+import { ThemePicker } from "@/features/app/components/theme-provider";
 
 type ViewId = "overview" | "organization" | "users" | "employees" | "attendance" | "leave" | "payroll" | "announcements" | "audit" | "assistant" | "profile";
 type PortalData = {
@@ -83,6 +84,10 @@ export function HcmPortal() {
   const [activeView, setActiveView] = useState<ViewId>("overview");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toast, setToast] = useState("");
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [quickResults, setQuickResults] = useState<EmployeeRecord[]>([]);
+  const [quickSearchBusy, setQuickSearchBusy] = useState(false);
+  const [peopleSearchSeed, setPeopleSearchSeed] = useState<{ query: string; key: number } | null>(null);
 
   const loadData = useCallback(async (role: string) => {
     setRefreshing(true);
@@ -149,6 +154,21 @@ export function HcmPortal() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  useEffect(() => {
+    const query = globalSearch.trim();
+    if (query.length < 2 || session?.user?.role === "EMPLOYEE") return;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setQuickSearchBusy(true);
+      const params = new URLSearchParams({ query, page: "1", pageSize: "5", status: "all", sortBy: "name", sortDirection: "asc" });
+      void apiRequest<{ items: EmployeeRecord[] }>(`/api/employees?${params.toString()}`)
+        .then((result) => { if (active) setQuickResults(result.items); })
+        .catch(() => { if (active) setQuickResults([]); })
+        .finally(() => { if (active) setQuickSearchBusy(false); });
+    }, 220);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [globalSearch, session?.user?.role]);
+
   const currentUser = session?.user ?? null;
   const nav = useMemo(() => currentUser ? navigation[currentUser.role] ?? [] : [], [currentUser]);
   const currentLabel = nav.find((item) => item.id === activeView)?.label ?? "Overview";
@@ -202,6 +222,7 @@ export function HcmPortal() {
         </nav>
         <div className="sidebar-bottom">
           <div className="help-card"><span className="help-icon"><CircleHelp size={16} /></span><strong>Need a hand?</strong><p>Visit the quick guide for your role.</p><button onClick={() => setActiveView("assistant")}>Open help <span>↗</span></button></div>
+          <div className="sidebar-theme-row"><span>Appearance</span><ThemePicker compact /></div>
           <div className="side-user">
             <span className="user-avatar">{initials(currentUser.name)}</span>
             <span className="user-meta"><strong>{currentUser.name}</strong><small>{currentUser.email}</small></span>
@@ -215,6 +236,8 @@ export function HcmPortal() {
           <div className="breadcrumbs"><span>Workspace</span><span className="crumb-separator">/</span><strong>{currentLabel}</strong></div>
           <div className="topbar-actions">
             <span className="topbar-date">{new Intl.DateTimeFormat("en-PK", { dateStyle: "medium", timeZone: session.company?.timezone ?? "Asia/Karachi" }).format(new Date())}</span>
+            {currentUser.role !== "EMPLOYEE" && <div className="global-search-wrap"><form className="global-search" role="search" onSubmit={(event) => { event.preventDefault(); if (globalSearch.trim()) { setPeopleSearchSeed({ query: globalSearch.trim(), key: Date.now() }); setActiveView("employees"); setQuickResults([]); } }}><Search size={15} /><input aria-label="Search your people directory" placeholder="Search people…" value={globalSearch} onChange={(event) => setGlobalSearch(event.target.value)} /><kbd>↵</kbd></form>{globalSearch.trim().length >= 2 && <div className="global-search-results" aria-label="People search results">{quickSearchBusy ? <div className="quick-search-message">Searching your company directory…</div> : quickResults.length ? quickResults.map((person) => <button key={person.id} type="button" className="quick-result" onClick={() => { setPeopleSearchSeed({ query: person.name, key: Date.now() }); setActiveView("employees"); setGlobalSearch(""); setQuickResults([]); }}><span className="quick-avatar">{initials(person.name)}</span><span><strong>{person.name}</strong><small>{person.designationName || "Team member"} · {person.departmentName || "Company"}</small></span><ChevronDown size={13} /></button>) : <div className="quick-search-message">No matching people. Press Enter to open the directory.</div>}</div>}</div>}
+            <ThemePicker compact />
             <button className="icon-button notification-button" aria-label="Open announcements" onClick={() => setActiveView("announcements")}>
               <Bell size={18} />{data.notifications.some((item) => !item.read) && <span className="notification-ping" />}
             </button>
@@ -230,10 +253,12 @@ export function HcmPortal() {
             user={currentUser}
             company={session.company}
             data={data}
+            peopleSearchSeed={peopleSearchSeed}
             refresh={() => currentUser ? loadData(currentUser.role) : Promise.resolve()}
             notify={setToast}
             goTo={setActiveView}
           />
+          <footer className="workspace-footer"><span>People.works <i>·</i> {session.company?.name ?? "Private workspace"}</span><span><ShieldCheck size={13} /> Company-scoped access <i>·</i> Local workspace</span></footer>
         </section>
         {toast && <div className="toast-message" role="status"><span className="toast-check">✓</span>{toast}<button aria-label="Dismiss notification" onClick={() => setToast("")}><X size={14} /></button></div>}
       </main>

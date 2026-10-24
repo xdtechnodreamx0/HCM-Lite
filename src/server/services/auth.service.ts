@@ -12,6 +12,8 @@ import {
 import { collections } from "@/server/db/collections";
 import { rateLimit } from "@/server/security/rate-limit";
 import { writeAudit } from "@/server/services/audit.service";
+import { getEmailProvider } from "@/lib/env";
+import { issueEmailVerification } from "@/server/services/email.service";
 import type { Role, SessionUser } from "@/lib/types";
 
 export const loginSchema = z.object({
@@ -33,6 +35,9 @@ export async function login(input: z.infer<typeof loginSchema>, ip: string) {
   const ok = user ? await verifyPassword(data.password, user.passwordHash) : false;
   if (!user || !ok || !user.active) {
     throw new AppError(401, "Invalid email or password.");
+  }
+  if (user.emailVerificationRequired && !user.emailVerifiedAt) {
+    throw new AppError(403, "Please verify your email before signing in. You can resend the verification link below.", "EMAIL_VERIFICATION_REQUIRED");
   }
   const session: SessionUser = {
     id: user.id,
@@ -94,6 +99,7 @@ export async function createLogin(input: {
   const temporaryPassword = createTemporaryPassword();
   const now = new Date();
   const id = (await import("@/lib/ids")).createId("usr");
+  const emailProvider = getEmailProvider();
   await db.users.insertOne({
     id,
     companyId: input.actor.companyId,
@@ -105,8 +111,18 @@ export async function createLogin(input: {
     active: true,
     forcePasswordChange: true,
     sessionVersion: 1,
+    ...(emailProvider ? { emailVerificationRequired: true } : {}),
     createdAt: now,
   });
+  try {
+    if (emailProvider) {
+      const company = await db.companies.findOne({ id: input.actor.companyId }, { projection: { name: 1 } });
+      await issueEmailVerification({ id, companyId: input.actor.companyId, email: input.email.toLowerCase(), name: input.name, company: String(company?.name ?? "your company") });
+    }
+  } catch (error) {
+    await db.users.deleteOne({ id, companyId: input.actor.companyId });
+    throw error;
+  }
   await writeAudit({
     actor: input.actor,
     companyId: input.actor.companyId,
