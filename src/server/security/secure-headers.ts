@@ -1,0 +1,9 @@
+export function secureHeaders() {
+  return {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Frame-Options": "DENY",
+    "Permissions-Policy": "camera=(), geolocation=(self), microphone=()",
+    "Cross-Origin-Opener-Policy": "same-origin",
+  };
+}
