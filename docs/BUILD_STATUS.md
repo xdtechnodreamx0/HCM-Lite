@@ -4,7 +4,7 @@ Updated: 2026-11-10 (Asia/Karachi)
 
 ## Current state
 
-The full Next.js app, role-scoped portal, MongoDB-backed service layer, Route Handlers, responsive CSS, four appearance modes, live people search, isolated guest demo, account recovery, optional Resend email verification, optional Gemini assistant, HR self-service, and server-verified geofenced check-in are present in this checkout. The public repository reports a successful Vercel deployment check for commit `25b818d`; the final documentation/test commit has not yet received its own provider check at the time this file was written. Production configuration and the live application URL have not been independently verified.
+The full Next.js app, role-scoped portal, MongoDB-backed service layer, Route Handlers, responsive CSS, four appearance modes, live people search, isolated guest demo, account recovery, optional Resend email verification, optional Gemini assistant, HR self-service, and server-verified geofenced check-in are present in this checkout. Final code commit `ed7895c` passed GitHub Actions CI run `42871142415`, and Vercel reported `Deployment has completed` for the same commit. Production configuration and the live application URL have not been independently verified.
 
 The permission model follows the brief’s matrix: Admin manages company setup, user logins, audit, announcements, and payroll finalization; HR registers and edits employees, manages salary structures and CSV tools, and decides employee attendance/leave requests; Employees act only on their own records. Admin sees the People directory read-only. The two deliberate exceptions are HR self-service (HR needs a linked staff profile to use its own check-in/leave) and Admin cover for an HR teammate’s own pending request; neither role can decide its own request.
 
@@ -26,8 +26,8 @@ The permission model follows the brief’s matrix: Admin manages company setup, 
 | MongoDB domain flows | Not verified live in the final pass | Local database ping passed previously, but a seeded end-to-end employee/leave/payroll walkthrough was not possible without the Docker daemon. |
 | Gemini | Disabled locally | The authenticated demo status previously returned `available: false`; no Gemini key is configured in that environment. Production key status is unknown. |
 | Docker image and Compose stack | Previously passed, not rerun | The production and demo containers built and reported healthy on 2026-10-25. The daemon was unavailable on 2026-11-10, so the final image build was not repeated. |
-| GitHub repository and CI | Passed on `25b818d`; final commit pending | Public repository: `https://github.com/xdtechnodreamx0/HCM-Lite`. Main CI run `40144775636` passed, and Vercel reported `Deployment has completed` for `25b818d`. The workflow now also runs `npm test`. The post-documentation commit check must be read from GitHub after push. |
-| Vercel production runtime | Partially verified | Provider deployment status is successful, but the public alias, `/api/health`, production database connection, environment variables, and account setup were not independently checked. Use the Vercel project’s **Visit** link and follow [DEPLOYMENT.md](DEPLOYMENT.md). |
+| GitHub repository and CI | Passed | Public repository: `https://github.com/xdtechnodreamx0/HCM-Lite`. Final code commit `ed7895c` passed CI run `42871142415` (install, lint, typecheck, tests, build), and Vercel reported `Deployment has completed`. The workflow now also runs `npm test`. |
+| Vercel production runtime | Partially verified | Provider deployment status is successful for `ed7895c`, but the public alias, `/api/health`, production database connection, environment variables, and account setup were not independently checked. Use the Vercel project’s **Visit** link and follow [DEPLOYMENT.md](DEPLOYMENT.md). |
 | Email verification and password-reset delivery | Implemented, not configured | Resend-backed HTML email and expiring hashed tokens are implemented. A Resend key and verified sender are still required; no email was sent during this work. |
 | Browser/E2E suite | Not authored | Playwright is configured, but no browser spec is committed. Manual demo steps are in [DEMO_RUNBOOK.md](DEMO_RUNBOOK.md). |
 
@@ -39,5 +39,4 @@ The local `.env.local` and Docker Compose configuration are present. Production 
 
 1. Start Docker Desktop, run the isolated demo seed from the README, and record a role-by-role walkthrough in this file.
 2. Exercise employee leave/correction submission, HR decisions, HR self-request Admin cover, geofenced check-in with a configured office radius, and finalized-payslip notifications against the seeded database.
-3. Verify the new GitHub Actions run and Vercel deployment check after pushing the final commit.
-4. Configure Resend and Gemini only with real server-side credentials, then verify email delivery and representative AI questions; do not fabricate either result when credentials are absent.
+3. Configure Resend and Gemini only with real server-side credentials, then verify email delivery and representative AI questions; do not fabricate either result when credentials are absent.
