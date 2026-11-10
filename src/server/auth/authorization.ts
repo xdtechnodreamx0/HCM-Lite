@@ -13,6 +13,14 @@ export function requireSelfOrStaff(user: SessionUser, employeeId: string) {
   }
 }
 
+export function requireSelfService(user: SessionUser) {
+  requireRole(user, ["EMPLOYEE", "HR"]);
+  if (!user.employeeId) {
+    throw new AppError(403, "Your login is not linked to a staff profile. Ask an Admin to link one in User access.");
+  }
+  return user.employeeId;
+}
+
 export function staffOnly(user: SessionUser) {
   requireRole(user, ["ADMIN", "HR"]);
 }

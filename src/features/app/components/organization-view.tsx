@@ -31,6 +31,9 @@ export function OrganizationView({ organization, role, refresh, notify }: {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [saving, setSaving] = useState(false);
+  const [nameEdit, setNameEdit] = useState<{ endpoint: string; id: string; value: string } | null>(null);
+  const [leaveEdit, setLeaveEdit] = useState<{ id: string; name: string; yearlyQuota: number; unlimited: boolean } | null>(null);
+  const [holidayEdit, setHolidayEdit] = useState<{ id: string; name: string; date: string } | null>(null);
 
   async function action(event: FormEvent<HTMLFormElement>, run: () => Promise<void>) {
     event.preventDefault(); setError(""); setSuccess(""); setSaving(true);
@@ -39,34 +42,33 @@ export function OrganizationView({ organization, role, refresh, notify }: {
     finally { setSaving(false); }
   }
 
-  async function renameRecord(endpoint: string, id: string, currentName: string) {
-    const name = window.prompt("Enter the updated name", currentName)?.trim();
-    if (!name || name === currentName) return;
-    setError(""); setSuccess("");
+  async function saveNameEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!nameEdit) return;
+    const name = nameEdit.value.trim();
+    if (name.length < 2) { setError("Enter at least two characters for the name."); return; }
+    setSaving(true); setError(""); setSuccess("");
     try {
-      await apiRequest(`${endpoint}/${encodeURIComponent(id)}`, { method: "PATCH", body: jsonBody({ name }) });
-      await refresh(); setSuccess("Saved successfully."); notify("Organization details updated.");
+      await apiRequest(`${nameEdit.endpoint}/${encodeURIComponent(nameEdit.id)}`, { method: "PATCH", body: jsonBody({ name }) });
+      await refresh(); setNameEdit(null); setSuccess("Saved successfully."); notify("Organization details updated.");
     } catch (reason) { setError(apiMessage(reason)); }
+    finally { setSaving(false); }
   }
 
-  async function editLeaveType(item: OrganizationPayload["leaveTypes"][number]) {
-    const name = window.prompt("Leave type name", item.name)?.trim();
-    if (!name) return;
-    const patch: { name: string; yearlyQuota?: number } = { name };
-    if (!item.unlimited) {
-      const rawQuota = window.prompt("Days per year", String(item.yearlyQuota));
-      if (rawQuota === null) return;
-      const yearlyQuota = Number(rawQuota);
-      if (!Number.isInteger(yearlyQuota) || yearlyQuota < 1 || yearlyQuota > 366) {
-        setError("Enter a whole number from 1 to 366."); return;
-      }
-      patch.yearlyQuota = yearlyQuota;
+  async function saveLeaveEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!leaveEdit) return;
+    const name = leaveEdit.name.trim();
+    if (name.length < 2) { setError("Enter at least two characters for the leave type."); return; }
+    if (!leaveEdit.unlimited && (!Number.isInteger(leaveEdit.yearlyQuota) || leaveEdit.yearlyQuota < 1 || leaveEdit.yearlyQuota > 366)) {
+      setError("Enter a whole number from 1 to 366 for days per year."); return;
     }
-    setError(""); setSuccess("");
+    setSaving(true); setError(""); setSuccess("");
     try {
-      await apiRequest(`/api/leave-types/${encodeURIComponent(item.id)}`, { method: "PATCH", body: jsonBody(patch) });
-      await refresh(); setSuccess("Saved successfully."); notify("Leave policy updated.");
+      await apiRequest(`/api/leave-types/${encodeURIComponent(leaveEdit.id)}`, { method: "PATCH", body: jsonBody({ name, ...(leaveEdit.unlimited ? {} : { yearlyQuota: leaveEdit.yearlyQuota }) }) });
+      await refresh(); setLeaveEdit(null); setSuccess("Saved successfully."); notify("Leave policy updated.");
     } catch (reason) { setError(apiMessage(reason)); }
+    finally { setSaving(false); }
   }
 
   async function setLeaveTypeActive(id: string, active: boolean) {
@@ -77,16 +79,28 @@ export function OrganizationView({ organization, role, refresh, notify }: {
     } catch (reason) { setError(apiMessage(reason)); }
   }
 
-  async function editHoliday(item: OrganizationPayload["holidays"][number]) {
-    const name = window.prompt("Holiday name", item.name)?.trim();
-    if (!name) return;
-    const date = window.prompt("Date (YYYY-MM-DD)", item.date)?.trim();
-    if (!date) return;
-    setError(""); setSuccess("");
+  async function saveHolidayEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!holidayEdit) return;
+    const name = holidayEdit.name.trim();
+    if (name.length < 2) { setError("Enter at least two characters for the holiday name."); return; }
+    setSaving(true); setError(""); setSuccess("");
     try {
-      await apiRequest(`/api/holidays/${encodeURIComponent(item.id)}`, { method: "PATCH", body: jsonBody({ name, date }) });
-      await refresh(); setSuccess("Saved successfully."); notify("Holiday calendar updated.");
+      await apiRequest(`/api/holidays/${encodeURIComponent(holidayEdit.id)}`, { method: "PATCH", body: jsonBody({ name, date: holidayEdit.date }) });
+      await refresh(); setHolidayEdit(null); setSuccess("Saved successfully."); notify("Holiday calendar updated.");
     } catch (reason) { setError(apiMessage(reason)); }
+    finally { setSaving(false); }
+  }
+
+  function nameTag(endpoint: string, item: { id: string; name: string }) {
+    if (nameEdit?.endpoint === endpoint && nameEdit.id === item.id) {
+      return <form className="inline-edit-form" key={item.id} onSubmit={saveNameEdit}>
+        <input autoFocus required minLength={2} maxLength={120} aria-label={`New name for ${item.name}`} value={nameEdit.value} onChange={(event) => setNameEdit({ ...nameEdit, value: event.target.value })} />
+        <PrimaryButton className="button-small" disabled={saving} aria-label="Save name"><Save size={13} /></PrimaryButton>
+        <button className="button button-quiet button-small" type="button" onClick={() => setNameEdit(null)}>Cancel</button>
+      </form>;
+    }
+    return <span className="soft-tag" key={item.id}>{item.name}{canManage && <button className="tag-edit-button" type="button" aria-label={`Rename ${item.name}`} onClick={() => { setNameEdit({ endpoint, id: item.id, value: item.name }); setError(""); }}><Pencil size={12} /></button>}</span>;
   }
 
   return <>
@@ -116,12 +130,12 @@ export function OrganizationView({ organization, role, refresh, notify }: {
       <Panel title="Departments" subtitle="Group people for reporting and access." className="compact-panel">
         {canManage && <form className="inline-create-form" onSubmit={(event) => action(event, async () => { await apiRequest("/api/departments", { method: "POST", body: jsonBody({ name: departmentName }) }); setDepartmentName(""); })}><input required minLength={2} placeholder="New department" value={departmentName} onChange={(event) => setDepartmentName(event.target.value)} aria-label="New department name" /><PrimaryButton aria-label="Add department" disabled={saving}><Plus size={16} /></PrimaryButton></form>}
         <FormError>{error}</FormError>
-        <div className="tag-list">{organization?.departments.length ? organization.departments.map((item) => <span className="soft-tag" key={item.id}>{item.name}{canManage && <button className="tag-edit-button" type="button" aria-label={`Rename ${item.name}`} onClick={() => void renameRecord("/api/departments", item.id, item.name)}><Pencil size={12} /></button>}</span>) : <span className="muted small-text">No departments added yet.</span>}</div>
+        <div className="tag-list">{organization?.departments.length ? organization.departments.map((item) => nameTag("/api/departments", item)) : <span className="muted small-text">No departments added yet.</span>}</div>
       </Panel>
       <Panel title="Designations" subtitle="Use clear titles across your employee directory." className="compact-panel">
         {canManage && <form className="inline-create-form" onSubmit={(event) => action(event, async () => { await apiRequest("/api/designations", { method: "POST", body: jsonBody({ name: designationName }) }); setDesignationName(""); })}><input required minLength={2} placeholder="New designation" value={designationName} onChange={(event) => setDesignationName(event.target.value)} aria-label="New designation name" /><PrimaryButton aria-label="Add designation" disabled={saving}><Plus size={16} /></PrimaryButton></form>}
         <FormError>{error}</FormError>
-        <div className="tag-list">{organization?.designations.length ? organization.designations.map((item) => <span className="soft-tag" key={item.id}>{item.name}{canManage && <button className="tag-edit-button" type="button" aria-label={`Rename ${item.name}`} onClick={() => void renameRecord("/api/designations", item.id, item.name)}><Pencil size={12} /></button>}</span>) : <span className="muted small-text">No designations added yet.</span>}</div>
+        <div className="tag-list">{organization?.designations.length ? organization.designations.map((item) => nameTag("/api/designations", item)) : <span className="muted small-text">No designations added yet.</span>}</div>
       </Panel>
       <Panel title="Leave policies" subtitle="Quota settings are saved with each new request." className="span-two">
         {canManage && <form className="inline-policy-form" onSubmit={(event) => action(event, async () => { await apiRequest("/api/leave-types", { method: "POST", body: jsonBody(leaveType) }); setLeaveType({ code: "", name: "", yearlyQuota: 12, unlimited: false }); })}>
@@ -132,7 +146,7 @@ export function OrganizationView({ organization, role, refresh, notify }: {
           <PrimaryButton disabled={saving}><Plus size={15} /> Add type</PrimaryButton>
         </form>}
         <FormError>{error}</FormError>
-        <div className="policy-list">{organization?.leaveTypes.map((item) => <div className="policy-row" key={item.id}><div><strong>{item.name}</strong><small>{item.code}</small></div><span>{item.unlimited ? "Unlimited" : `${item.yearlyQuota} days / year`}</span><StatusPill value={item.active ? "Active" : "Inactive"} />{canManage && <div className="policy-actions"><button className="text-button" type="button" onClick={() => void editLeaveType(item)}>Edit</button><button className="text-button" type="button" onClick={() => void setLeaveTypeActive(item.id, !item.active)}>{item.active ? "Deactivate" : "Activate"}</button></div>}</div>)}</div>
+        <div className="policy-list">{organization?.leaveTypes.map((item) => leaveEdit?.id === item.id ? <form className="policy-edit-form" key={item.id} onSubmit={saveLeaveEdit}><input autoFocus required minLength={2} maxLength={120} aria-label={`Leave type name for ${item.name}`} value={leaveEdit.name} onChange={(event) => setLeaveEdit({ ...leaveEdit, name: event.target.value })} />{!leaveEdit.unlimited && <label className="inline-number-field"><span>Days / year</span><input type="number" min={1} max={366} required value={leaveEdit.yearlyQuota} onChange={(event) => setLeaveEdit({ ...leaveEdit, yearlyQuota: Number(event.target.value) })} /></label>}<PrimaryButton className="button-small" disabled={saving}><Save size={13} /> Save</PrimaryButton><button className="button button-quiet button-small" type="button" onClick={() => setLeaveEdit(null)}>Cancel</button></form> : <div className="policy-row" key={item.id}><div><strong>{item.name}</strong><small>{item.code}{item.unlimited ? " · unlimited" : ""}</small></div><span>{item.unlimited ? "Unlimited" : `${item.yearlyQuota} days / year`}</span><StatusPill value={item.active ? "Active" : "Inactive"} />{canManage && <div className="policy-actions"><button className="text-button" type="button" onClick={() => { setLeaveEdit({ id: item.id, name: item.name, yearlyQuota: item.yearlyQuota, unlimited: item.unlimited }); setError(""); }}>Edit</button><button className="text-button" type="button" onClick={() => void setLeaveTypeActive(item.id, !item.active)}>{item.active ? "Deactivate" : "Activate"}</button></div>}</div>)}</div>
       </Panel>
       <Panel title="Public holidays" subtitle="Holiday dates are excluded from leave day counts." className="span-two">
         {canManage && <form className="inline-holiday-form" onSubmit={(event) => action(event, async () => { await apiRequest("/api/holidays", { method: "POST", body: jsonBody(holiday) }); setHoliday({ date: "", name: "" }); })}>
@@ -140,7 +154,7 @@ export function OrganizationView({ organization, role, refresh, notify }: {
           <label className="field-label holiday-name-field">Holiday<input required minLength={2} placeholder="Holiday name" value={holiday.name} onChange={(event) => setHoliday({ ...holiday, name: event.target.value })} /></label>
           <PrimaryButton disabled={saving}><Plus size={15} /> Add holiday</PrimaryButton>
         </form>}
-        <div className="holiday-list">{organization?.holidays.length ? organization.holidays.map((item) => <div className="holiday-row" key={item.id}><span className="holiday-date-icon"><CalendarDays size={15} /></span><strong>{item.name}</strong><span>{formatDate(item.date)}</span>{canManage && <button className="tag-edit-button" type="button" aria-label={`Edit ${item.name}`} onClick={() => void editHoliday(item)}><Pencil size={12} /></button>}</div>) : <p className="muted small-text">No public holidays have been added.</p>}</div>
+        <div className="holiday-list">{organization?.holidays.length ? organization.holidays.map((item) => holidayEdit?.id === item.id ? <form className="holiday-edit-form" key={item.id} onSubmit={saveHolidayEdit}><input autoFocus required type="date" aria-label={`Holiday date for ${item.name}`} value={holidayEdit.date} onChange={(event) => setHolidayEdit({ ...holidayEdit, date: event.target.value })} /><input required minLength={2} maxLength={120} aria-label={`Holiday name for ${item.name}`} value={holidayEdit.name} onChange={(event) => setHolidayEdit({ ...holidayEdit, name: event.target.value })} /><PrimaryButton className="button-small" disabled={saving}><Save size={13} /> Save</PrimaryButton><button className="button button-quiet button-small" type="button" onClick={() => setHolidayEdit(null)}>Cancel</button></form> : <div className="holiday-row" key={item.id}><span className="holiday-date-icon"><CalendarDays size={15} /></span><strong>{item.name}</strong><span>{formatDate(item.date)}</span>{canManage && <button className="tag-edit-button" type="button" aria-label={`Edit ${item.name}`} onClick={() => { setHolidayEdit({ id: item.id, name: item.name, date: item.date }); setError(""); }}><Pencil size={12} /></button>}</div>) : <p className="muted small-text">No public holidays have been added.</p>}</div>
       </Panel>
       <Panel title="Attendance policy" subtitle="Plain-language rules used by the system." className="span-two policy-note-panel">
         <div className="rule-summary"><div><span><Clock3 size={15} /></span><strong>Late after</strong><small>{organization?.calendar.officeStart ?? "09:00"} + {organization?.calendar.graceMinutes ?? 15} minute grace</small></div><div><span><MapPin size={15} /></span><strong>Office area</strong><small>{organization?.calendar.officeLat != null && organization.calendar.officeLng != null ? `${organization.calendar.geofenceRadiusMeters} m radius configured` : "Location is optional and not configured"}</small></div><div><span><Settings2 size={15} /></span><strong>Half day</strong><small>Less than 5 hours worked</small></div></div>

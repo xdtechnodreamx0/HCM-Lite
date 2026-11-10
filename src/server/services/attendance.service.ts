@@ -3,9 +3,11 @@ import { AppError } from "@/lib/errors";
 import { createId } from "@/lib/ids";
 import { toIsoDate, isWorkday } from "@/lib/dates";
 import { classifyAttendance } from "@/lib/attendance-rules";
-import { requireRole, requireSelfOrStaff } from "@/server/auth/authorization";
+import { isInsideGeofence } from "@/lib/geo";
+import { requireRole, requireSelfOrStaff, requireSelfService } from "@/server/auth/authorization";
 import { collections } from "@/server/db/collections";
 import { getCalendar } from "@/server/services/organization.service";
+import { notify, notifyRole } from "@/server/services/notifications.service";
 import { writeAudit } from "@/server/services/audit.service";
 import type { SessionUser } from "@/lib/types";
 
@@ -13,23 +15,48 @@ function todayFor(timeZone: string) {
   return toIsoDate(new Date(), timeZone);
 }
 
-export async function checkIn(actor: SessionUser) {
-  requireRole(actor, ["EMPLOYEE"]);
-  if (!actor.employeeId) throw new AppError(404, "Employee profile not found.");
+const locationSchema = z.object({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  accuracyMeters: z.number().positive().max(10_000).optional(),
+}).strict();
+
+export async function checkIn(actor: SessionUser, raw?: unknown) {
+  const employeeId = requireSelfService(actor);
   const calendar = await getCalendar(actor.companyId);
   const now = new Date();
   const workDate = todayFor(calendar.timezone);
   if (!isWorkday(workDate, calendar)) throw new AppError(422, "Today is not a configured workday.");
   const db = await collections();
-  const employee = await db.employees.findOne({ id: actor.employeeId, companyId: actor.companyId, status: { $in: ["active", "probation"] } });
+  const employee = await db.employees.findOne({ id: employeeId, companyId: actor.companyId, status: { $in: ["active", "probation"] } });
   if (!employee) throw new AppError(403, "Your employee account is not active.");
+  let location: Record<string, unknown> | undefined;
+  if (calendar.officeLat != null && calendar.officeLng != null) {
+    const parsed = z.object({ location: locationSchema }).strict().safeParse(raw);
+    if (!parsed.success) throw new AppError(422, "Share your current location to verify that you are inside the office area.");
+    const check = isInsideGeofence({
+      office: { lat: calendar.officeLat, lng: calendar.officeLng },
+      point: { lat: parsed.data.location.latitude, lng: parsed.data.location.longitude },
+      radiusMeters: calendar.geofenceRadiusMeters,
+      accuracyMeters: parsed.data.location.accuracyMeters,
+    });
+    if (!check.ok) throw new AppError(422, check.reason ?? "Move inside the office area to check in.");
+    location = {
+      latitude: parsed.data.location.latitude,
+      longitude: parsed.data.location.longitude,
+      accuracyMeters: parsed.data.location.accuracyMeters ?? null,
+      distanceMeters: Math.round(check.distance ?? 0),
+      verifiedAt: now,
+    };
+  }
   const late = classifyAttendance({ checkInAt: now, policy: calendar }).late;
   const id = createId("att");
   try {
     await db.attendance.insertOne({
-      id, companyId: actor.companyId, employeeId: actor.employeeId, workDate,
+      id, companyId: actor.companyId, employeeId, workDate,
       checkInAt: now, checkOutAt: null, workedSeconds: 0, status: late ? "late" : "missing_checkout",
-      late, halfDay: false, missingCheckout: true,
+      late, halfDay: false, missingCheckout: true, source: location ? "web_location" : "web",
+      ...(location ? { location } : {}),
       policySnapshot: { timezone: calendar.timezone, officeStart: calendar.officeStart, graceMinutes: calendar.graceMinutes },
       createdAt: now, updatedAt: now,
     });
@@ -37,23 +64,22 @@ export async function checkIn(actor: SessionUser) {
     if ((error as { code?: number }).code === 11000) throw new AppError(409, "You already checked in today.");
     throw error;
   }
-  await writeAudit({ actor, companyId: actor.companyId, action: "attendance.check_in", entity: "attendance", entityId: id, after: { workDate, checkInAt: now, late } });
-  return { id, workDate, checkInAt: now.toISOString(), late };
+  await writeAudit({ actor, companyId: actor.companyId, action: "attendance.check_in", entity: "attendance", entityId: id, after: { workDate, checkInAt: now, late, locationVerified: Boolean(location) } });
+  return { id, workDate, checkInAt: now.toISOString(), late, locationVerified: Boolean(location) };
 }
 
 export async function checkOut(actor: SessionUser) {
-  requireRole(actor, ["EMPLOYEE"]);
-  if (!actor.employeeId) throw new AppError(404, "Employee profile not found.");
+  const employeeId = requireSelfService(actor);
   const calendar = await getCalendar(actor.companyId);
   const workDate = todayFor(calendar.timezone);
   const db = await collections();
-  const record = await db.attendance.findOne({ companyId: actor.companyId, employeeId: actor.employeeId, workDate });
+  const record = await db.attendance.findOne({ companyId: actor.companyId, employeeId, workDate });
   if (!record) throw new AppError(409, "Check in before checking out.");
   if (record.checkOutAt) throw new AppError(409, "You already checked out today.");
   const checkOutAt = new Date();
   const result = classifyAttendance({ checkInAt: new Date(record.checkInAt as string | Date), checkOutAt, policy: calendar });
   const updated = await db.attendance.updateOne(
-    { id: record.id, companyId: actor.companyId, employeeId: actor.employeeId, checkOutAt: null },
+    { id: record.id, companyId: actor.companyId, employeeId, checkOutAt: null },
     { $set: { checkOutAt, status: result.status, workedSeconds: result.workedSeconds, halfDay: result.halfDay, late: result.late, missingCheckout: false, updatedAt: checkOutAt } },
   );
   if (updated.modifiedCount !== 1) throw new AppError(409, "Attendance was already checked out.");
@@ -70,6 +96,13 @@ export async function attendanceHistory(actor: SessionUser, employeeId?: string)
   const rows = await db.attendance.find({ companyId: actor.companyId, employeeId: targetId }, { projection: { _id: 0 } })
     .sort({ workDate: -1 }).limit(120).toArray();
   return rows;
+}
+
+export async function attendanceSelf(actor: SessionUser) {
+  const employeeId = requireSelfService(actor);
+  const db = await collections();
+  return db.attendance.find({ companyId: actor.companyId, employeeId }, { projection: { _id: 0 } })
+    .sort({ workDate: -1 }).limit(120).toArray();
 }
 
 export async function attendanceBoard(actor: SessionUser, workDate?: string, departmentId?: string) {
@@ -114,13 +147,12 @@ const correctionSchema = z.object({
 });
 
 export async function requestCorrection(actor: SessionUser, raw: unknown) {
-  requireRole(actor, ["EMPLOYEE"]);
-  if (!actor.employeeId) throw new AppError(404, "Employee profile not found.");
+  const employeeId = requireSelfService(actor);
   const data = correctionSchema.parse(raw);
   const db = await collections();
-  const attendance = await db.attendance.findOne({ companyId: actor.companyId, employeeId: actor.employeeId, workDate: data.workDate });
+  const attendance = await db.attendance.findOne({ companyId: actor.companyId, employeeId, workDate: data.workDate });
   if (!attendance) throw new AppError(404, "Attendance record not found for that date.");
-  const pending = await db.attendanceCorrections.findOne({ companyId: actor.companyId, employeeId: actor.employeeId, workDate: data.workDate, status: "pending" });
+  const pending = await db.attendanceCorrections.findOne({ companyId: actor.companyId, employeeId, workDate: data.workDate, status: "pending" });
   if (pending) throw new AppError(409, "A correction request is already pending for that date.");
   const id = createId("cor");
   const after = {
@@ -128,11 +160,19 @@ export async function requestCorrection(actor: SessionUser, raw: unknown) {
     checkOutAt: data.checkOutAt ? new Date(data.checkOutAt) : attendance.checkOutAt,
   };
   await db.attendanceCorrections.insertOne({
-    id, companyId: actor.companyId, employeeId: actor.employeeId, attendanceId: attendance.id,
+    id, companyId: actor.companyId, employeeId, attendanceId: attendance.id,
     workDate: data.workDate, before: { checkInAt: attendance.checkInAt, checkOutAt: attendance.checkOutAt },
     after, reason: data.reason, status: "pending", requestedBy: actor.id, createdAt: new Date(),
   });
   await writeAudit({ actor, companyId: actor.companyId, action: "attendance.correction.request", entity: "attendanceCorrection", entityId: id, after: { workDate: data.workDate, reason: data.reason } });
+  await notifyRole({
+    companyId: actor.companyId,
+    role: actor.role === "HR" ? "ADMIN" : "HR",
+    title: actor.role === "HR" ? "HR correction request needs Admin review" : "New attendance correction needs review",
+    body: `${actor.name} requested a correction for ${data.workDate}.`,
+    href: "/attendance",
+    excludeUserId: actor.id,
+  }).catch(() => undefined);
   return { id };
 }
 
@@ -142,15 +182,44 @@ export async function listCorrections(actor: SessionUser) {
     ? { companyId: actor.companyId, employeeId: actor.employeeId }
     : { companyId: actor.companyId };
   if (actor.role !== "EMPLOYEE") requireRole(actor, ["ADMIN", "HR"]);
-  return db.attendanceCorrections.find(filter, { projection: { _id: 0 } }).sort({ createdAt: -1 }).limit(100).toArray();
+  const rows = await db.attendanceCorrections.find(filter, { projection: { _id: 0 } }).sort({ createdAt: -1 }).limit(100).toArray();
+  let hrEmployeeIds = new Set<string>();
+  if (actor.role === "ADMIN") {
+    const hrUsers = await db.users.find(
+      { companyId: actor.companyId, role: "HR", active: true, employeeId: { $exists: true, $ne: null } },
+      { projection: { employeeId: 1 } },
+    ).toArray();
+    hrEmployeeIds = new Set(hrUsers.map((user) => String(user.employeeId)));
+  }
+  return rows.map((row) => ({
+    ...row,
+    canDecide: row.status === "pending" && (
+      actor.role === "HR"
+        ? String(row.employeeId) !== actor.employeeId
+        : actor.role === "ADMIN"
+          ? hrEmployeeIds.has(String(row.employeeId))
+          : false
+    ),
+  }));
 }
 
 export async function decideCorrection(actor: SessionUser, correctionId: string, raw: unknown) {
-  requireRole(actor, ["HR"]);
+  if (actor.role !== "HR" && actor.role !== "ADMIN") {
+    throw new AppError(403, "You do not have access to this action.");
+  }
   const input = z.object({ decision: z.enum(["approved", "rejected"]), comment: z.string().trim().min(2).max(500) }).parse(raw);
   const db = await collections();
   const correction = await db.attendanceCorrections.findOne({ id: correctionId, companyId: actor.companyId, status: "pending" });
   if (!correction) throw new AppError(404, "Pending correction not found.");
+  if (actor.employeeId && String(correction.employeeId) === actor.employeeId) {
+    throw new AppError(403, "You cannot decide your own correction request.");
+  }
+  if (actor.role === "ADMIN") {
+    const hrOwner = await db.users.findOne({
+      companyId: actor.companyId, employeeId: String(correction.employeeId), role: "HR", active: true,
+    }, { projection: { id: 1 } });
+    if (!hrOwner) throw new AppError(403, "Only HR can decide employee correction requests.");
+  }
   if (input.decision === "approved") {
     const checkInAt = new Date(correction.after.checkInAt as string | Date);
     const checkOutAt = correction.after.checkOutAt ? new Date(correction.after.checkOutAt as string | Date) : null;
@@ -167,5 +236,15 @@ export async function decideCorrection(actor: SessionUser, correctionId: string,
   );
   if (result.modifiedCount !== 1) throw new AppError(409, "This correction was already decided.");
   await writeAudit({ actor, companyId: actor.companyId, action: `attendance.correction.${input.decision}`, entity: "attendanceCorrection", entityId: correctionId, before: correction.before, after: { ...correction.after, comment: input.comment } });
+  const employee = await db.employees.findOne({ id: correction.employeeId, companyId: actor.companyId }, { projection: { _id: 0, userId: 1 } });
+  if (employee?.userId) {
+    await notify({
+      companyId: actor.companyId,
+      recipientUserId: String(employee.userId),
+      title: input.decision === "approved" ? "Attendance correction approved" : "Attendance correction updated",
+      body: `Your correction for ${String(correction.workDate)} was ${input.decision}.`,
+      href: "/attendance",
+    }).catch(() => undefined);
+  }
   return { updated: true };
 }

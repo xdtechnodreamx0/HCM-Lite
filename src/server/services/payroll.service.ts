@@ -8,6 +8,7 @@ import { calculatePayslip } from "@/lib/payroll-rules";
 import { requireRole, requireSelfOrStaff } from "@/server/auth/authorization";
 import { collections } from "@/server/db/collections";
 import { getCalendar } from "@/server/services/organization.service";
+import { notifyEmployees } from "@/server/services/notifications.service";
 import { writeAudit } from "@/server/services/audit.service";
 import type { SessionUser } from "@/lib/types";
 
@@ -189,6 +190,16 @@ export async function finalizePayroll(actor: SessionUser, periodInput: string) {
     throw new AppError(409, "Payroll changed before finalization.");
   }
   await writeAudit({ actor, companyId: actor.companyId, action: "payroll.finalize", entity: "payrollRun", entityId: String(run.id), before: { status: "draft" }, after: { status: "finalized", period, totals: run.totals } });
+  const employeeIds = ((run.entries as Array<Record<string, unknown>> | undefined) ?? [])
+    .map((entry) => String(entry.employeeId ?? ""))
+    .filter(Boolean);
+  await notifyEmployees({
+    companyId: actor.companyId,
+    employeeIds,
+    title: "Your payslip is ready",
+    body: `Payroll for ${period} has been finalized. Open Payroll to download your payslip.`,
+    href: "/payroll",
+  }).catch(() => undefined);
   const finalized = await db.payrollRuns.findOne({ id: run.id }, { projection: { _id: 0, entries: 0 } });
   return { finalized: true, alreadyFinalized: false, run: finalized };
 }

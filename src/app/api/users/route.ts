@@ -9,7 +9,11 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   return withApi(request, async ({ request: currentRequest, user }) => {
     const actor = requireApiUser(user);
-    const input = z.object({ name: z.string().trim().min(2).max(80), email: z.email(), role: z.enum(["HR", "ADMIN"]).default("HR") }).strict().parse(await readJson<unknown>(currentRequest));
+    const input = z.object({
+      name: z.string().trim().min(2).max(80), email: z.email(),
+      role: z.enum(["HR", "ADMIN"]).default("HR"),
+      employeeId: z.string().min(1).max(100).optional(),
+    }).strict().parse(await readJson<unknown>(currentRequest));
     return json(await createLogin({ actor, ...input }), 201);
   });
 }

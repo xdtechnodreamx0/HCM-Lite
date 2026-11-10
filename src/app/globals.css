@@ -212,8 +212,12 @@ a { color: inherit; }
 .date-filter { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 10px; border: 1px solid #dfe6e1; border-radius: 9px; background: #fff; color: #6b7770; }
 .date-filter input { min-width: 120px; border: 0; outline: 0; background: transparent; color: #48564d; font-size: 10px; }
 .date-filter input:focus { outline: none; }
-.attendance-filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.attendance-filter-bar .filter-label { min-height: 36px; padding: 0 10px; border: 1px solid #dfe6e1; border-radius: 9px; background: #fff; }
+.attendance-filter-bar, .dashboard-filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.attendance-filter-bar .filter-label, .dashboard-filter-bar .filter-label { min-height: 36px; padding: 0 10px; border: 1px solid #dfe6e1; border-radius: 9px; background: #fff; }
+.dashboard-filter-bar { margin: -11px 0 16px; padding: 10px 11px; border: 1px solid #e8ece9; border-radius: 12px; background: rgba(250,252,249,.9); }
+.dashboard-filter-label { display: inline-flex; align-items: center; gap: 6px; margin-right: 2px; color: #65746b; font-size: 10px; font-weight: 650; }
+.filter-joiner { color: #96a19a; font-size: 9px; }
+.filter-error { flex-basis: 100%; color: #9b4543; font-size: 10px; }
 .filter-label { display: inline-flex; align-items: center; gap: 8px; color: #8b958f; font-size: 10px; }
 .filter-label select { min-height: 31px; padding: 0 8px; border: 1px solid #e0e6e2; border-radius: 8px; background: #fff; color: #4a5850; font-size: 10px; }
 .inline-create-form { display: flex; gap: 8px; margin-bottom: 15px; }
@@ -359,10 +363,21 @@ input[type="checkbox"] { accent-color: var(--green); }
 /* Organization */
 .module-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; align-items: start; }
 .organization-grid .panel { min-height: 100%; }
-.inline-create-user { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
+.inline-create-user { display: grid; grid-template-columns: 1.1fr 1.1fr .8fr 1.1fr auto; gap: 12px; align-items: end; }
 .inline-create-user .button { min-height: 38px; }
+.form-hint { margin: 10px 0 0; color: #8b958f; font-size: 9px; line-height: 1.55; }
+.profile-link-select { max-width: 180px; }
 .tag-list { display: flex; flex-wrap: wrap; gap: 7px; }
 .soft-tag { display: inline-flex; align-items: center; min-height: 28px; padding: 0 9px; border: 1px solid #e4ebe5; border-radius: 99px; background: #f9fbf9; color: #65736a; font-size: 9px; }
+.inline-edit-form, .policy-edit-form, .holiday-edit-form { display: flex; align-items: center; gap: 6px; flex: 1; flex-wrap: wrap; }
+.inline-edit-form input, .policy-edit-form input, .holiday-edit-form input { min-height: 32px; padding: 0 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); font-size: 10px; }
+.inline-edit-form input { flex: 1; min-width: 120px; }
+.policy-edit-form, .holiday-edit-form { padding: 8px 3px; border-top: 1px solid #f0f2f0; }
+.policy-edit-form > input { flex: 1; min-width: 140px; }
+.inline-number-field { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 9px; white-space: nowrap; }
+.inline-number-field input { width: 72px; }
+.holiday-edit-form input[type="date"] { width: 138px; }
+.holiday-edit-form input:not([type="date"]) { flex: 1; min-width: 130px; }
 .tag-edit-button { display: inline-flex; align-items: center; justify-content: center; width: 23px; height: 23px; margin-left: 5px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #718078; cursor: pointer; }
 .tag-edit-button:hover, .tag-edit-button:focus-visible { background: #e9f1eb; color: #3f7651; outline: none; }
 .inline-policy-form { display: grid; grid-template-columns: 1fr 1.3fr .8fr auto auto; gap: 10px; align-items: end; padding: 13px; border: 1px solid #edf0ed; border-radius: 10px; background: #fbfcfb; }
@@ -406,7 +421,9 @@ input[type="checkbox"] { accent-color: var(--green); }
 .correction-icon { width: 31px; height: 31px; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; border-radius: 9px; background: #f4f3ed; color: #a0874d; }
 .correction-row > div:nth-child(2) { min-width: 0; flex: 1; }
 .correction-row strong, .correction-row small { display: block; }.correction-row strong { overflow: hidden; color: #58645b; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }.correction-row small { margin-top: 4px; color: #969f99; font-size: 9px; }
+.correction-comment { width: 100%; margin-top: 7px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); font-size: 10px; }
 .correction-actions { display: flex; gap: 6px; }
+.balance-loading .loading-line { margin-top: 8px; }
 .modal-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(19,34,27,.42); backdrop-filter: blur(3px); }
 .profile-modal, .form-modal { position: relative; width: min(100%, 580px); max-height: min(90vh, 760px); overflow-y: auto; padding: 28px; border: 1px solid #e7ece8; border-radius: 18px; background: #fff; box-shadow: 0 24px 80px rgba(22,44,31,.2); }
 .form-modal { width: min(100%, 460px); }
@@ -558,6 +575,7 @@ input[type="checkbox"] { accent-color: var(--green); }
   .balance-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .inline-create-user { grid-template-columns: 1fr 1fr; }
   .inline-create-user .button { grid-column: span 2; justify-self: start; }
+  .profile-link-select { max-width: none; }
   .rule-summary { grid-template-columns: 1fr; }
   .payslip-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -613,8 +631,9 @@ input[type="checkbox"] { accent-color: var(--green); }
   .people-filter-controls { width: 100%; }
   .people-filter-controls .filter-label { flex: 1 1 42%; justify-content: space-between; }
   .people-filter-controls .filter-label select { max-width: 60%; }
-  .attendance-filter-bar { width: 100%; }
-  .attendance-filter-bar > * { flex: 1; justify-content: space-between; }
+  .attendance-filter-bar, .dashboard-filter-bar { width: 100%; }
+  .attendance-filter-bar > *, .dashboard-filter-bar > .date-filter, .dashboard-filter-bar > .filter-label { flex: 1; justify-content: space-between; }
+  .dashboard-filter-label { flex-basis: 100%; }
   .table-search { width: 100%; }
   .toolbar-caption { align-self: flex-end; }
   .data-table { min-width: 680px; }

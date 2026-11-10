@@ -136,6 +136,12 @@ export async function createLogin(input: {
   const now = new Date();
   const id = (await import("@/lib/ids")).createId("usr");
   const emailProvider = getEmailProvider();
+  let linkedEmployee: Record<string, unknown> | null = null;
+  if (input.employeeId) {
+    linkedEmployee = await db.employees.findOne({ id: input.employeeId, companyId: input.actor.companyId });
+    if (!linkedEmployee) throw new AppError(422, "Choose an employee profile from this company.");
+    if (linkedEmployee.userId) throw new AppError(409, "That employee profile is already linked to another login.");
+  }
   await db.users.insertOne({
     id,
     companyId: input.actor.companyId,
@@ -151,11 +157,19 @@ export async function createLogin(input: {
     createdAt: now,
   });
   try {
+    if (linkedEmployee) {
+      const linked = await db.employees.updateOne(
+        { id: input.employeeId, companyId: input.actor.companyId, $or: [{ userId: { $exists: false } }, { userId: null }] },
+        { $set: { userId: id, updatedAt: now } },
+      );
+      if (linked.modifiedCount !== 1) throw new AppError(409, "That employee profile was linked to another login. Refresh and try again.");
+    }
     if (emailProvider) {
       const company = await db.companies.findOne({ id: input.actor.companyId }, { projection: { name: 1 } });
       await issueEmailVerification({ id, companyId: input.actor.companyId, email: input.email.toLowerCase(), name: input.name, company: String(company?.name ?? "your company") });
     }
   } catch (error) {
+    if (linkedEmployee) await db.employees.updateOne({ id: input.employeeId, companyId: input.actor.companyId, userId: id }, { $unset: { userId: "" } });
     await db.users.deleteOne({ id, companyId: input.actor.companyId });
     throw error;
   }
@@ -212,6 +226,47 @@ export async function setUserRole(actor: SessionUser, userId: string, role: Role
   );
   if (result.modifiedCount !== 1) throw new AppError(409, "This account changed. Refresh and try again.");
   await writeAudit({ actor, companyId: actor.companyId, action: "user.role.change", entity: "user", entityId: userId, before: { role: user.role }, after: { role } });
+}
+
+export async function setUserEmployeeLink(actor: SessionUser, userId: string, employeeId: string | null) {
+  requireRole(actor, ["ADMIN"]);
+  const db = await collections();
+  const user = await db.users.findOne({ id: userId, companyId: actor.companyId });
+  if (!user) throw new AppError(404, "User not found.");
+  if (user.signupPending) throw new AppError(422, "Link sign-up requests by adding their employee profile in People.");
+  if (user.role === "EMPLOYEE" && !employeeId) throw new AppError(422, "Employee logins must stay linked to an employee profile.");
+  let employee: Record<string, unknown> | null = null;
+  if (employeeId) {
+    employee = await db.employees.findOne({ id: employeeId, companyId: actor.companyId });
+    if (!employee) throw new AppError(422, "Choose an employee profile from this company.");
+    if (employee.userId && String(employee.userId) !== userId) throw new AppError(409, "That employee profile is already linked to another login.");
+  }
+  const now = new Date();
+  const result = await db.users.updateOne(
+    { id: userId, companyId: actor.companyId, sessionVersion: user.sessionVersion },
+    { $set: { employeeId: employeeId ?? null, sessionVersion: Number(user.sessionVersion ?? 0) + 1, updatedAt: now } },
+  );
+  if (result.modifiedCount !== 1) throw new AppError(409, "This account changed. Refresh and try again.");
+  if (employeeId) {
+    const linked = await db.employees.updateOne(
+      { id: employeeId, companyId: actor.companyId, $or: [{ userId: { $exists: false } }, { userId: null }, { userId }] },
+      { $set: { userId, updatedAt: now } },
+    );
+    if (linked.modifiedCount !== 1) {
+      await db.users.updateOne({ id: userId, companyId: actor.companyId }, { $set: { employeeId: user.employeeId ?? null, sessionVersion: user.sessionVersion, updatedAt: now } });
+      throw new AppError(409, "That employee profile was linked to another login. Refresh and try again.");
+    }
+  }
+  if (user.employeeId && user.employeeId !== employeeId) {
+    await db.employees.updateOne({ id: user.employeeId, companyId: actor.companyId, userId }, { $unset: { userId: "" }, $set: { updatedAt: now } });
+  }
+  await writeAudit({
+    actor, companyId: actor.companyId,
+    action: employeeId ? "user.profile.link" : "user.profile.unlink",
+    entity: "user", entityId: userId,
+    before: { employeeId: user.employeeId ?? null }, after: { employeeId: employeeId ?? null },
+  });
+  return { updated: true };
 }
 
 export async function resetUserPassword(actor: SessionUser, userId: string) {

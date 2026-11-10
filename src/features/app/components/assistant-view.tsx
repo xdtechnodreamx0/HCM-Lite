@@ -3,21 +3,24 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ArrowRight, Bot, Check, CircleHelp, LoaderCircle, MessageCircle, Sparkles, WandSparkles } from "lucide-react";
 import { apiRequest, jsonBody } from "@/lib/api-client";
-import type { DashboardPayload, LeaveBalanceRecord, OrganizationPayload, SessionPayload } from "@/lib/domain-types";
+import type { DashboardFilters, DashboardPayload, LeaveBalanceRecord, OrganizationPayload, SessionPayload } from "@/lib/domain-types";
 import { apiMessage } from "@/lib/errors";
 import { FormError, PageHeading, Panel, PrimaryButton } from "@/features/app/components/ui";
 
 type AiReply = { available: boolean; answer?: string; toolName?: string; prefill?: { leaveTypeCode: string; startDate: string; endDate: string; reason: string }; message?: string };
 type ChatLine = { role: "user" | "assistant"; content: string; toolName?: string };
 
-export function AssistantView({ role, dashboard, organization, company, currentPage }: {
+export function AssistantView({ role, employeeId, dashboard, dashboardFilters, organization, company, currentPage }: {
   role: NonNullable<SessionPayload["user"]>["role"];
+  employeeId?: string;
   dashboard: DashboardPayload | null;
+  dashboardFilters: DashboardFilters;
   organization: OrganizationPayload | null;
   company: SessionPayload["company"];
   currentPage: string;
 }) {
   const [available, setAvailable] = useState<boolean | null>(null);
+  const canSelfService = (role === "EMPLOYEE" || role === "HR") && Boolean(employeeId);
   const [message, setMessage] = useState("");
   const [lines, setLines] = useState<ChatLine[]>([]);
   const [busy, setBusy] = useState(false);
@@ -31,8 +34,8 @@ export function AssistantView({ role, dashboard, organization, company, currentP
 
   useEffect(() => {
     void apiRequest<{ available: boolean }>("/api/ai/status").then((result) => setAvailable(result.available)).catch(() => setAvailable(false));
-    if (role === "EMPLOYEE") void apiRequest<{ balances: LeaveBalanceRecord[] }>("/api/leave-balances").then((result) => setBalances(result.balances)).catch(() => setBalances([]));
-  }, [role]);
+    if (canSelfService) void apiRequest<{ balances: LeaveBalanceRecord[] }>("/api/leave-balances").then((result) => setBalances(result.balances)).catch(() => setBalances([]));
+  }, [canSelfService]);
 
   async function submitQuestion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!message.trim()) return;
@@ -49,7 +52,11 @@ export function AssistantView({ role, dashboard, organization, company, currentP
     if (!dashboard) return;
     setBusy(true); setError(""); setSummary("");
     try {
-      const result = await apiRequest<AiReply>("/api/ai/chat", { method: "POST", body: jsonBody({ mode: "summary", message: "Summarize the current dashboard." , metrics: dashboard }) });
+      const result = await apiRequest<AiReply>("/api/ai/chat", { method: "POST", body: jsonBody({ mode: "summary", message: "Summarize the current dashboard.", filters: {
+        start: dashboardFilters.start || undefined,
+        end: dashboardFilters.end || undefined,
+        departmentId: dashboardFilters.departmentId || undefined,
+      } }) });
       setAvailable(result.available); setSummary(result.answer ?? result.message ?? "No summary is available.");
     } catch (reason) { setError(apiMessage(reason)); }
     finally { setBusy(false); }
@@ -87,10 +94,10 @@ export function AssistantView({ role, dashboard, organization, company, currentP
         <form className="chat-composer" onSubmit={submitQuestion}><label className="sr-only" htmlFor="assistant-question">Your question</label><input id="assistant-question" value={message} onChange={(event) => setMessage(event.target.value)} disabled={!available || busy} placeholder={available ? "Ask something about your workspace…" : "Connect Gemini to start asking questions"} /><button className="chat-send" aria-label="Send question" disabled={!available || busy || !message.trim()}>{busy ? <LoaderCircle className="spin" size={17} /> : <ArrowRight size={17} />}</button></form>
         <div className="ai-footnote"><ShieldCheckIcon />Private tools follow your role permissions. The assistant cannot approve leave or change records.</div>
       </Panel>
-      {role !== "EMPLOYEE" && <Panel title="Dashboard summary" subtitle="A short summary of the current dashboard values." className="summary-panel"><div className="summary-placeholder"><span className="summary-icon"><WandSparkles size={17} /></span><p>{summary || "Ask AI to summarize your current filtered KPIs in three to five clear points."}</p></div><button className="button button-secondary button-small" disabled={!available || busy || !dashboard} onClick={() => void summarize()}>{busy ? "Working…" : "Summarize current dashboard"}<ArrowRight size={14} /></button></Panel>}
-      {role === "EMPLOYEE" && <Panel title="Smart leave" subtitle="Describe your time away, review the details and confirm through the normal leave form." className="smart-leave-panel"><form className="form-stack" onSubmit={parseSmartLeave}><label className="field-label">Describe your request<textarea required minLength={8} maxLength={600} rows={3} value={smartText} onChange={(event) => setSmartText(event.target.value)} placeholder="For example: I need next Monday and Tuesday off for a wedding." /></label><PrimaryButton disabled={!available || smartLoading}>{smartLoading ? "Preparing…" : "Prepare a leave draft"}<WandSparkles size={15} /></PrimaryButton></form>
+      {role !== "EMPLOYEE" && <Panel title="Dashboard summary" subtitle="A short summary of the current dashboard values." className="summary-panel"><div className="summary-placeholder"><span className="summary-icon"><WandSparkles size={17} /></span><p>{summary || "Ask AI to summarize your current filtered KPIs in three to five clear points."}</p></div><button className="button button-secondary button-small" disabled={!available || busy || !dashboard} onClick={() => void summarize()}>{busy ? "Working…" : "Summarize current dashboard"}<ArrowRight size={14} /></button><p className="summary-scope">{dashboardFilters.start || dashboardFilters.end || dashboardFilters.departmentId ? `Uses the dashboard filters you applied${dashboardFilters.departmentId ? " · department selected" : ""}.` : "Uses the current month-to-date company view."}</p></Panel>}
+      {canSelfService && <Panel title="Smart leave" subtitle="Describe your time away, review the details and confirm through the normal leave form." className="smart-leave-panel"><form className="form-stack" onSubmit={parseSmartLeave}><label className="field-label">Describe your request<textarea required minLength={8} maxLength={600} rows={3} value={smartText} onChange={(event) => setSmartText(event.target.value)} placeholder="For example: I need next Monday and Tuesday off for a wedding." /></label><PrimaryButton disabled={!available || smartLoading}>{smartLoading ? "Preparing…" : "Prepare a leave draft"}<WandSparkles size={15} /></PrimaryButton></form>
         {smartPrefill && <form className="smart-leave-review" onSubmit={submitPrefill}><div className="review-banner"><Check size={15} /><span>Check these details. Nothing is submitted until you confirm below.</span></div><label className="field-label">Leave type<select name="leaveTypeCode" required defaultValue={smartPrefill.leaveTypeCode}>{balances.map((item) => <option value={item.code} key={item.id}>{item.name}</option>)}</select></label><div className="form-grid"><label className="field-label">Start date<input type="date" name="startDate" required defaultValue={smartPrefill.startDate} /></label><label className="field-label">End date<input type="date" name="endDate" required defaultValue={smartPrefill.endDate} /></label></div><label className="field-label">Reason<textarea name="reason" required minLength={5} maxLength={700} rows={3} defaultValue={smartPrefill.reason} /></label><PrimaryButton disabled={smartLoading}>Confirm and submit leave<ArrowRight size={15} /></PrimaryButton></form>}
-        {leaveSaved && <div className="inline-alert success-alert">Your leave request was submitted for HR review.</div>}
+        {leaveSaved && <div className="inline-alert success-alert">Your leave request was submitted for {role === "HR" ? "Admin" : "HR"} review.</div>}
       </Panel>}
       <Panel title="Company policy" subtitle="A few everyday rules the assistant can explain." className="policy-qa-panel">
         <div className="qa-item"><span>01</span><div><strong>Attendance</strong><p>Late after {organization?.calendar.officeStart ?? company?.officeStart ?? "09:00"} plus {organization?.calendar.graceMinutes ?? company?.graceMinutes ?? 15} minutes. Under 5 hours is a half day.</p></div></div>

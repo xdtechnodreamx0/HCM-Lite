@@ -1,21 +1,66 @@
+import { useState, type FormEvent } from "react";
 import { Activity, ArrowRight, CalendarClock, CalendarDays, CheckCircle2, Clock3, UserRound, Users, WalletCards } from "lucide-react";
-import type { AnnouncementRecord, DashboardPayload, SessionPayload } from "@/lib/domain-types";
-import { EmptyState, MetricCard, PageHeading, Panel, ProgressBar, formatMoney } from "@/features/app/components/ui";
+import type { AnnouncementRecord, DashboardFilters, DashboardPayload, OrganizationPayload, SessionPayload } from "@/lib/domain-types";
+import { EmptyState, MetricCard, PageHeading, Panel, ProgressBar, formatDate, formatMoney } from "@/features/app/components/ui";
 
-export function DashboardView({ dashboard, announcements = [], user, onGo }: { dashboard: DashboardPayload | null; announcements?: AnnouncementRecord[]; user: NonNullable<SessionPayload["user"]>; onGo: (view: "employees" | "attendance" | "leave" | "payroll" | "assistant" | "announcements") => void }) {
+export function DashboardView({ dashboard, announcements = [], user, onGo, organization, filters, onApplyFilters }: {
+  dashboard: DashboardPayload | null;
+  announcements?: AnnouncementRecord[];
+  user: NonNullable<SessionPayload["user"]>;
+  onGo: (view: "employees" | "attendance" | "leave" | "payroll" | "assistant" | "announcements") => void;
+  organization: OrganizationPayload | null;
+  filters: DashboardFilters;
+  onApplyFilters: (filters: DashboardFilters) => void;
+}) {
   const name = user.name.split(" ")[0];
   const iconList = [Users, Activity, CalendarDays, Clock3, WalletCards];
   const greeting = new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 17 ? "Good afternoon" : "Good evening";
   const kpis = dashboard?.kpis ?? [];
   const hours = dashboard?.employee?.hoursThisWeek ?? 0;
+  const isEmployee = user.role === "EMPLOYEE";
+  const defaultEnd = dashboard?.asOf ?? new Date().toISOString().slice(0, 10);
+  const defaultStart = `${defaultEnd.slice(0, 7)}-01`;
+  const [draft, setDraft] = useState<DashboardFilters>(() => ({
+    start: filters.start || defaultStart,
+    end: filters.end || defaultEnd,
+    departmentId: filters.departmentId,
+  }));
+  const [filterError, setFilterError] = useState("");
+  const hasFilters = Boolean(filters.start || filters.end || filters.departmentId);
+  const snapshot = dashboard?.snapshotDate ?? dashboard?.asOf ?? "";
+  const snapshotIsToday = snapshot === dashboard?.asOf;
+
+  function applyFilters(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!draft.start || !draft.end) { setFilterError("Choose both a start and end date."); return; }
+    if (draft.start > draft.end) { setFilterError("The start date must be on or before the end date."); return; }
+    setFilterError("");
+    onApplyFilters({ ...draft });
+  }
+
+  function resetFilters() {
+    setFilterError("");
+    setDraft({ start: defaultStart, end: defaultEnd, departmentId: "" });
+    onApplyFilters({ start: "", end: "", departmentId: "" });
+  }
 
   return <>
-    <PageHeading eyebrow={user.role === "EMPLOYEE" ? "YOUR WORKSPACE" : `${user.role} OVERVIEW`} title={`${greeting}, ${name}.`} description={user.role === "EMPLOYEE" ? "Here’s how your week is going." : "A clear view of what’s happening across your team."} action={<span className="live-date-chip"><span className="live-dot" /> Live · {dashboard?.asOf ?? "—"}</span>} />
+    <PageHeading eyebrow={isEmployee ? "YOUR WORKSPACE" : `${user.role} OVERVIEW`} title={`${greeting}, ${name}.`} description={isEmployee ? "Here’s how your week is going." : "A clear view of what’s happening across your team."} action={<span className="live-date-chip"><span className="live-dot" /> Live · {dashboard?.asOf ?? "—"}</span>} />
+    {!isEmployee && <form className="dashboard-filter-bar" onSubmit={applyFilters} aria-label="Filter dashboard by date and department">
+      <span className="dashboard-filter-label"><CalendarDays size={14} /> Dashboard range</span>
+      <label className="date-filter"><span className="sr-only">Start date</span><input type="date" value={draft.start} max={draft.end || undefined} onChange={(event) => setDraft({ ...draft, start: event.target.value })} /></label>
+      <span className="filter-joiner">to</span>
+      <label className="date-filter"><span className="sr-only">End date</span><input type="date" value={draft.end} min={draft.start || undefined} onChange={(event) => setDraft({ ...draft, end: event.target.value })} /></label>
+      <label className="filter-label">Department <select aria-label="Filter dashboard by department" value={draft.departmentId} onChange={(event) => setDraft({ ...draft, departmentId: event.target.value })}><option value="">All departments</option>{organization?.departments.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <button className="button button-primary button-small" type="submit">Apply filters</button>
+      {hasFilters && <button className="button button-quiet button-small" type="button" onClick={resetFilters}>Reset</button>}
+      {filterError && <span className="filter-error" role="alert">{filterError}</span>}
+    </form>}
     <div className={`metric-grid ${kpis.length > 4 ? "metric-grid-five" : ""}`}>
       {kpis.map((metric, index) => <MetricCard key={metric.label} label={metric.label} value={metric.value} note={metric.note} icon={iconList[index % iconList.length]} />)}
     </div>
 
-    {user.role === "EMPLOYEE" ? (
+    {isEmployee ? (
       <div className="dashboard-grid employee-dashboard-grid">
         <Panel title="Your time this week" subtitle="A steady week, one check-in at a time." action={<button className="panel-link" onClick={() => onGo("attendance")}>View attendance <ArrowRight size={14} /></button>}>
           <div className="week-hours"><strong>{hours.toFixed(1)}<span>h</span></strong><span className="week-target">of 40 hours</span></div>
@@ -34,7 +79,7 @@ export function DashboardView({ dashboard, announcements = [], user, onGo }: { d
       </div>
     ) : (
       <div className="dashboard-grid">
-        <Panel title="Attendance at a glance" subtitle={`Today · ${dashboard?.asOf ?? ""}`} action={<button className="panel-link" onClick={() => onGo("attendance")}>Open attendance <ArrowRight size={14} /></button>}>
+        <Panel title="Attendance at a glance" subtitle={`${snapshotIsToday ? "Today" : "Selected date"} · ${snapshot ? formatDate(snapshot) : ""}`} action={<button className="panel-link" onClick={() => onGo("attendance")}>Open attendance <ArrowRight size={14} /></button>}>
           {dashboard ? <div className="attendance-glance">
             <div className="glance-main"><span className="glance-ring"><CheckCircle2 size={23} /></span><div><strong>{dashboard.attendance.present}</strong><span>present today</span></div></div>
             <div className="glance-stats">
@@ -44,7 +89,7 @@ export function DashboardView({ dashboard, announcements = [], user, onGo }: { d
             </div>
           </div> : <EmptyState title="No attendance data yet" description="Team attendance will appear after employees check in." icon={Activity} />}
         </Panel>
-        <Panel title="Attendance trend" subtitle="Recorded presence over the last week." action={<span className="chart-key"><span /> People</span>}>
+        <Panel title="Attendance trend" subtitle={hasFilters ? "Recorded presence over the last seven days of your range." : "Recorded presence over the last seven days."} action={<span className="chart-key"><span /> People</span>}>
           {dashboard?.trend.length ? <div className="mini-chart" role="img" aria-label="Attendance trend by day">
             {dashboard.trend.map((item, index) => <div className="mini-chart-column" key={`${item.label}-${index}`}><span className="mini-chart-value">{item.value}</span><div className="mini-chart-track"><span style={{ height: `${Math.max(4, Math.min(100, item.value * 16))}%` }} /></div><small>{item.label}</small></div>)}
           </div> : <EmptyState title="No trend to display" description="Attendance history will create a useful trend here." icon={Activity} />}
@@ -67,10 +112,10 @@ export function DashboardView({ dashboard, announcements = [], user, onGo }: { d
       <Panel title="Time with the company" subtitle="Tenure for the current workforce."><BreakdownList items={dashboard.detail.tenureBreakdown ?? []} /></Panel>
     </div>}
     {user.role === "HR" && dashboard?.detail && <div className="dashboard-grid hr-insights-grid">
-      <Panel title="Team health" subtitle={`People metrics · ${dashboard.asOf.slice(0, 7)}`}>
+      <Panel title="Team health" subtitle={`People metrics · ${(dashboard.filters?.end ?? dashboard.asOf).slice(0, 7)}`}>
         <div className="health-metrics"><div><small>Attendance rate</small><strong>{percent(dashboard.detail.attendanceRate)}</strong></div><div><small>Late arrivals</small><strong>{percent(dashboard.detail.latePercent)}</strong></div><div><small>Absenteeism</small><strong>{percent(dashboard.detail.absenteeism)}</strong></div><div><small>Approved leave</small><strong>{dashboard.detail.leaveUtilizationDays === null ? "N/A" : `${dashboard.detail.leaveUtilizationDays.toFixed(1)} days / person`}</strong></div></div>
       </Panel>
-      <Panel title="Most late arrivals" subtitle={`Employee count · ${dashboard.asOf.slice(0, 7)}`} action={<button className="panel-link" onClick={() => onGo("attendance")}>Review attendance <ArrowRight size={14} /></button>}>
+      <Panel title="Most late arrivals" subtitle={`Employee count · ${(dashboard.filters?.end ?? dashboard.asOf).slice(0, 7)}`} action={<button className="panel-link" onClick={() => onGo("attendance")}>Review attendance <ArrowRight size={14} /></button>}>
         {dashboard.detail.topLatecomers?.length ? <ol className="latecomer-list">{dashboard.detail.topLatecomers.map((item, index) => <li key={item.employeeId}><span className="latecomer-rank">{index + 1}</span><span><strong>{item.name}</strong><small>{item.employeeCode} · {item.departmentName}</small></span><b>{item.lateCount}</b></li>)}</ol> : <EmptyState title="No late arrivals in this period" description="Late check-ins will appear here when recorded." icon={Clock3} />}
       </Panel>
     </div>}

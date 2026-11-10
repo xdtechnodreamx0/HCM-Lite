@@ -23,13 +23,24 @@ export function AuthGate({ initialized, onReady }: { initialized: boolean; onRea
   useEffect(() => {
     if (activeMode !== "login") return;
     const url = new URL(window.location.href);
+    const email = url.searchParams.get("email");
+    let emailTimer: number | undefined;
+    if (email) {
+      emailTimer = window.setTimeout(() => {
+        setForm((current) => current.email ? current : { ...current, email });
+      }, 0);
+      url.searchParams.delete("email");
+      window.history.replaceState({}, "", url.toString());
+    }
     const token = url.searchParams.get("verify");
-    if (!token) return;
-    url.searchParams.delete("verify");
-    window.history.replaceState({}, "", url.toString());
-    void apiRequest("/api/auth/verify-email", { method: "POST", body: jsonBody({ token }) })
-      .then(() => setNotice("Your email is verified. Sign in to open your workspace."))
-      .catch((reason) => setError(reason instanceof Error ? reason.message : "This verification link could not be used."));
+    if (token) {
+      url.searchParams.delete("verify");
+      window.history.replaceState({}, "", url.toString());
+      void apiRequest("/api/auth/verify-email", { method: "POST", body: jsonBody({ token }) })
+        .then(() => setNotice("Your email is verified. Sign in to open your workspace."))
+        .catch((reason) => setError(reason instanceof Error ? reason.message : "This verification link could not be used."));
+    }
+    return () => { if (emailTimer) window.clearTimeout(emailTimer); };
   }, [activeMode]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { AppError } from "@/lib/errors";
 import { attrition, attendanceRate, absenteeism, latePercent, safeRatio } from "@/lib/dashboard-metrics";
 import { currentYear, eachIsoDate, isWorkday, monthRange, toIsoDate } from "@/lib/dates";
@@ -16,9 +17,13 @@ export async function getDashboard(actor: SessionUser, input: { start?: string; 
   const calendar = await getCalendar(actor.companyId);
   const today = toIsoDate(new Date(), calendar.timezone);
   const nowRange = monthRange(Number(today.slice(0, 4)), Number(today.slice(5, 7)));
-  const start = input.start ?? nowRange.start;
-  const end = input.end ?? today;
-  if (start > end || start.length !== 10 || end.length !== 10) throw new AppError(422, "Choose a valid date range.");
+  const start = input.start ? z.iso.date().parse(input.start) : nowRange.start;
+  const end = input.end ? z.iso.date().parse(input.end) : today;
+  if (start > end) throw new AppError(422, "Choose a valid date range.");
+  if (new Date(`${end}T00:00:00.000Z`).getTime() - new Date(`${start}T00:00:00.000Z`).getTime() > 366 * 24 * 60 * 60 * 1000) {
+    throw new AppError(422, "Choose a dashboard range of 366 days or fewer.");
+  }
+  const snapshotDate = end < today ? end : today;
   const db = await collections();
   const employeeFilter: Record<string, unknown> = { companyId: actor.companyId };
   if (actor.role === "EMPLOYEE") {
@@ -38,16 +43,16 @@ export async function getDashboard(actor: SessionUser, input: { start?: string; 
   const employeeIds = new Set(allEmployees.map((employee) => String(employee.id)));
   const scopedAttendance = attendanceRows.filter((row) => employeeIds.has(String(row.employeeId)));
   const scopedLeaves = leaveRows.filter((leave) => employeeIds.has(String(leave.employeeId)));
-  const todayAttendance = scopedAttendance.filter((row) => row.workDate === today);
+  const todayAttendance = scopedAttendance.filter((row) => row.workDate === snapshotDate);
   const todayLeaves = scopedLeaves.filter((leave) => {
     const dates = Array.isArray(leave.dates) ? leave.dates.map(String) : [];
-    return dates.length ? dates.includes(today) : String(leave.startDate) <= today && String(leave.endDate) >= today;
+    return dates.length ? dates.includes(snapshotDate) : String(leave.startDate) <= snapshotDate && String(leave.endDate) >= snapshotDate;
   });
   const attendedIds = new Set(todayAttendance.map((row) => String(row.employeeId)));
   const onLeaveIds = new Set(todayLeaves.map((row) => String(row.employeeId)));
   const present = todayAttendance.filter((row) => row.status === "present" || row.status === "late" || row.status === "missing_checkout").length;
   const late = todayAttendance.filter((row) => row.late === true).length;
-  const absent = isWorkday(today, calendar)
+  const absent = isWorkday(snapshotDate, calendar)
     ? currentEmployees.filter((employee) => !attendedIds.has(String(employee.id)) && !onLeaveIds.has(String(employee.id))).length
     : 0;
   const rangeWorkdays = eachIsoDate(start, end).filter((date) => isWorkday(date, calendar));
@@ -117,7 +122,8 @@ export async function getDashboard(actor: SessionUser, input: { start?: string; 
     const ownEntry = (lastPayslip?.entries as Array<Record<string, unknown>> | undefined)?.find((entry) => entry.employeeId === employeeId);
     const hoursThisWeek = ownAttendance.reduce((sum, row) => sum + Number(row.workedSeconds ?? 0), 0) / 3600;
     return {
-      role: actor.role, asOf: today,
+      role: actor.role, asOf: today, snapshotDate,
+      filters: { start, end, departmentId: null },
       kpis: [
         { label: "Hours this week", value: hoursThisWeek.toFixed(1), note: "Against a 40 hour target" },
         { label: "Late arrivals", value: ownAttendance.filter((row) => row.late).length, note: "This week" },
@@ -145,7 +151,9 @@ export async function getDashboard(actor: SessionUser, input: { start?: string; 
         { label: "On leave today", value: todayLeaves.length, note: "Approved leave" },
         { label: "Late today", value: late, note: "Arrival after configured grace" },
       ];
-  const lastSeven = eachIsoDate(today, today).length ? eachIsoDate(addIsoDays(today, -6), today) : [];
+  const trendEnd = end > today ? today : end;
+  const trendStart = addIsoDays(trendEnd, -6) < start ? start : addIsoDays(trendEnd, -6);
+  const lastSeven = eachIsoDate(trendStart, trendEnd);
   const trend = lastSeven.map((date) => ({
     label: dayLabel(date),
     value: scopedAttendance.filter((row) => row.workDate === date && ["present", "late", "missing_checkout"].includes(String(row.status))).length,
@@ -154,7 +162,7 @@ export async function getDashboard(actor: SessionUser, input: { start?: string; 
     ? await db.auditLogs.find({ companyId: actor.companyId }, { projection: { _id: 0, id: 1, action: 1, entity: 1, actorEmail: 1, createdAt: 1 } }).sort({ createdAt: -1 }).limit(8).toArray()
     : [];
   return {
-    role: actor.role, asOf: today, kpis,
+    role: actor.role, asOf: today, snapshotDate, filters: { start, end, departmentId: input.departmentId ?? null }, kpis,
     attendance: { present, onLeave: todayLeaves.length, late, absent },
     pendingLeaves: pendingLeaves,
     trend,

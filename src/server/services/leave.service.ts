@@ -3,10 +3,10 @@ import { AppError } from "@/lib/errors";
 import { createId } from "@/lib/ids";
 import { eachIsoDate, currentYear, toIsoDate } from "@/lib/dates";
 import { canApply, countedLeaveDays, rangesOverlap } from "@/lib/leave-rules";
-import { requireRole, requireSelfOrStaff } from "@/server/auth/authorization";
+import { requireRole, requireSelfOrStaff, requireSelfService } from "@/server/auth/authorization";
 import { collections } from "@/server/db/collections";
 import { getCalendar } from "@/server/services/organization.service";
-import { notify } from "@/server/services/notifications.service";
+import { notify, notifyRole } from "@/server/services/notifications.service";
 import { writeAudit } from "@/server/services/audit.service";
 import type { SessionUser } from "@/lib/types";
 
@@ -86,7 +86,7 @@ const requestSchema = z.object({
 });
 
 export async function getLeaveBalances(actor: SessionUser, employeeId?: string) {
-  const targetId = actor.role === "EMPLOYEE" ? actor.employeeId : employeeId;
+  const targetId = actor.role === "EMPLOYEE" ? actor.employeeId : (employeeId ?? actor.employeeId);
   if (!targetId) throw new AppError(422, "Select an employee.");
   requireSelfOrStaff(actor, targetId);
   if (actor.role !== "EMPLOYEE") requireRole(actor, ["ADMIN", "HR"]);
@@ -114,8 +114,7 @@ export async function getLeaveBalances(actor: SessionUser, employeeId?: string) 
 }
 
 export async function createLeaveRequest(actor: SessionUser, raw: unknown) {
-  requireRole(actor, ["EMPLOYEE"]);
-  if (!actor.employeeId) throw new AppError(404, "Employee profile not found.");
+  const employeeId = requireSelfService(actor);
   const input = requestSchema.parse(raw);
   const calendar = await getCalendar(actor.companyId);
   const dates = countedLeaveDays(input.startDate, input.endDate, calendar);
@@ -127,9 +126,9 @@ export async function createLeaveRequest(actor: SessionUser, raw: unknown) {
   const db = await collections();
   const [leaveType, employee, overlapping] = await Promise.all([
     db.leaveTypes.findOne({ companyId: actor.companyId, code: input.leaveTypeCode, active: true }),
-    db.employees.findOne({ id: actor.employeeId, companyId: actor.companyId }),
+    db.employees.findOne({ id: employeeId, companyId: actor.companyId }),
     db.leaveRequests.findOne({
-      companyId: actor.companyId, employeeId: actor.employeeId,
+      companyId: actor.companyId, employeeId,
       status: { $in: ["pending", "approved"] }, startDate: { $lte: input.endDate }, endDate: { $gte: input.startDate },
     }),
   ]);
@@ -139,7 +138,7 @@ export async function createLeaveRequest(actor: SessionUser, raw: unknown) {
   const slices = splitDaysByYear(dates);
   if (!Boolean(leaveType.unlimited)) {
     for (const slice of slices) {
-      const usage = await db.leaveUsage.findOne({ companyId: actor.companyId, employeeId: actor.employeeId, leaveTypeCode: input.leaveTypeCode, year: slice.year });
+      const usage = await db.leaveUsage.findOne({ companyId: actor.companyId, employeeId, leaveTypeCode: input.leaveTypeCode, year: slice.year });
       const approvedDays = Number(usage?.approvedDays ?? 0);
       const quota = Number(leaveType.yearlyQuota ?? 0);
       if (approvedDays + slice.days > quota) throw new AppError(422, `Not enough ${String(leaveType.name).toLowerCase()} balance for ${slice.year}.`);
@@ -147,7 +146,7 @@ export async function createLeaveRequest(actor: SessionUser, raw: unknown) {
   }
   const id = createId("lev");
   await db.leaveRequests.insertOne({
-    id, companyId: actor.companyId, employeeId: actor.employeeId, employeeName: employee.name,
+    id, companyId: actor.companyId, employeeId, employeeName: employee.name,
     employeeCode: employee.employeeCode, leaveTypeId: leaveType.id, leaveTypeCode: leaveType.code,
     leaveTypeName: leaveType.name, startDate: input.startDate, endDate: input.endDate,
     days: dates.length, dates, daysByYear: slices, reason: input.reason, status: "pending",
@@ -155,6 +154,14 @@ export async function createLeaveRequest(actor: SessionUser, raw: unknown) {
     policySnapshot: { timezone: calendar.timezone, weekendDays: calendar.weekendDays, holidays: calendar.holidays, quota: leaveType.yearlyQuota, unlimited: leaveType.unlimited },
   });
   await writeAudit({ actor, companyId: actor.companyId, action: "leave.request", entity: "leaveRequest", entityId: id, after: { leaveTypeCode: input.leaveTypeCode, startDate: input.startDate, endDate: input.endDate, days: dates.length } });
+  await notifyRole({
+    companyId: actor.companyId,
+    role: actor.role === "HR" ? "ADMIN" : "HR",
+    title: actor.role === "HR" ? "HR leave request needs Admin review" : "New leave request needs review",
+    body: `${String(employee.name)} requested ${String(leaveType.name)} from ${input.startDate} to ${input.endDate} (${dates.length} ${dates.length === 1 ? "day" : "days"}).`,
+    href: "/leave",
+    excludeUserId: actor.id,
+  }).catch(() => undefined);
   return { id, days: dates.length, status: "pending" };
 }
 
@@ -169,15 +176,44 @@ export async function listLeaveRequests(actor: SessionUser, status = "all") {
     requireRole(actor, ["ADMIN", "HR"]);
   }
   if (requestedStatus !== "all") filter.status = requestedStatus;
-  return db.leaveRequests.find(filter, { projection: { _id: 0 } }).sort({ createdAt: -1 }).limit(200).toArray();
+  const rows = await db.leaveRequests.find(filter, { projection: { _id: 0 } }).sort({ createdAt: -1 }).limit(200).toArray();
+  let hrEmployeeIds = new Set<string>();
+  if (actor.role === "ADMIN") {
+    const hrUsers = await db.users.find(
+      { companyId: actor.companyId, role: "HR", active: true, employeeId: { $exists: true, $ne: null } },
+      { projection: { employeeId: 1 } },
+    ).toArray();
+    hrEmployeeIds = new Set(hrUsers.map((user) => String(user.employeeId)));
+  }
+  return rows.map((row) => ({
+    ...row,
+    canDecide: row.status === "pending" && (
+      actor.role === "HR"
+        ? String(row.employeeId) !== actor.employeeId
+        : actor.role === "ADMIN"
+          ? hrEmployeeIds.has(String(row.employeeId))
+          : false
+    ),
+  }));
 }
 
 export async function decideLeaveRequest(actor: SessionUser, requestId: string, raw: unknown) {
-  requireRole(actor, ["HR"]);
+  if (actor.role !== "HR" && actor.role !== "ADMIN") {
+    throw new AppError(403, "You do not have access to this action.");
+  }
   const input = z.object({ decision: z.enum(["approved", "rejected"]), comment: z.string().trim().min(2).max(500) }).parse(raw);
   const db = await collections();
   const request = await db.leaveRequests.findOne({ id: requestId, companyId: actor.companyId, status: "pending" });
   if (!request) throw new AppError(404, "Pending leave request not found.");
+  if (actor.employeeId && String(request.employeeId) === actor.employeeId) {
+    throw new AppError(403, "You cannot decide your own leave request.");
+  }
+  if (actor.role === "ADMIN") {
+    const hrOwner = await db.users.findOne({
+      companyId: actor.companyId, employeeId: String(request.employeeId), role: "HR", active: true,
+    }, { projection: { id: 1 } });
+    if (!hrOwner) throw new AppError(403, "Only HR can decide employee leave requests.");
+  }
   const leaveType = await db.leaveTypes.findOne({ companyId: actor.companyId, code: request.leaveTypeCode });
   if (!leaveType) throw new AppError(409, "The leave policy for this request is no longer available.");
   const slices = request.daysByYear as YearSlice[];
@@ -209,17 +245,16 @@ export async function decideLeaveRequest(actor: SessionUser, requestId: string, 
       title: input.decision === "approved" ? "Leave approved" : "Leave request updated",
       body: `${String(request.leaveTypeName)} from ${String(request.startDate)} to ${String(request.endDate)} was ${input.decision}.`,
       href: "/leave",
-    });
+    }).catch(() => undefined);
   }
   await writeAudit({ actor, companyId: actor.companyId, action: `leave.${input.decision}`, entity: "leaveRequest", entityId: requestId, before: { status: "pending" }, after: { status: input.decision, comment: input.comment, days: request.days } });
   return { status: input.decision };
 }
 
 export async function cancelLeaveRequest(actor: SessionUser, requestId: string) {
-  requireRole(actor, ["EMPLOYEE"]);
-  if (!actor.employeeId) throw new AppError(404, "Employee profile not found.");
+  const employeeId = requireSelfService(actor);
   const db = await collections();
-  const request = await db.leaveRequests.findOne({ id: requestId, companyId: actor.companyId, employeeId: actor.employeeId, status: { $in: ["pending", "approved"] } });
+  const request = await db.leaveRequests.findOne({ id: requestId, companyId: actor.companyId, employeeId, status: { $in: ["pending", "approved"] } });
   if (!request) throw new AppError(404, "Request cannot be cancelled.");
   const calendar = await getCalendar(actor.companyId);
   if (request.status === "approved" && String(request.startDate) < toIsoDate(new Date(), calendar.timezone)) {
@@ -228,20 +263,20 @@ export async function cancelLeaveRequest(actor: SessionUser, requestId: string) 
   const leaveType = await db.leaveTypes.findOne({ companyId: actor.companyId, code: request.leaveTypeCode });
   if (request.status === "approved" && !leaveType) throw new AppError(409, "The leave policy for this request is no longer available.");
   const result = await db.leaveRequests.updateOne(
-    { id: requestId, companyId: actor.companyId, employeeId: actor.employeeId, status: request.status },
+    { id: requestId, companyId: actor.companyId, employeeId, status: request.status },
     { $set: { status: "cancelled", cancelledAt: new Date() } },
   );
   if (result.modifiedCount !== 1) throw new AppError(409, "This leave request changed before it could be cancelled.");
   if (request.status === "approved" && leaveType) {
     try {
       await adjustUsageSlices({
-        companyId: actor.companyId, employeeId: actor.employeeId, leaveTypeCode: String(request.leaveTypeCode),
+        companyId: actor.companyId, employeeId, leaveTypeCode: String(request.leaveTypeCode),
         slices: request.daysByYear as YearSlice[], quota: Number(request.policySnapshot?.quota ?? leaveType.yearlyQuota ?? 0),
         unlimited: Boolean(request.policySnapshot?.unlimited ?? leaveType.unlimited), direction: -1,
       });
     } catch (error) {
       await db.leaveRequests.updateOne(
-        { id: requestId, companyId: actor.companyId, employeeId: actor.employeeId, status: "cancelled" },
+        { id: requestId, companyId: actor.companyId, employeeId, status: "cancelled" },
         { $set: { status: "approved" }, $unset: { cancelledAt: "" } },
       );
       throw error;

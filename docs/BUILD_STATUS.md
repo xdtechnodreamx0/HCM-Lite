@@ -1,34 +1,43 @@
 # Build status
 
-Updated: 2026-10-25 (Asia/Karachi)
+Updated: 2026-11-10 (Asia/Karachi)
 
 ## Current state
 
-The full Next.js app, role-specific portal, MongoDB-backed service layer, Route Handlers, responsive CSS, theme modes, live people search, and optional Resend email verification are present in `C:\dev\HCM-Lite`. This is a local implementation candidate, not a verified production deployment. No submission or public deployment is claimed.
+The full Next.js app, role-scoped portal, MongoDB-backed service layer, Route Handlers, responsive CSS, four appearance modes, live people search, isolated guest demo, account recovery, optional Resend email verification, optional Gemini assistant, HR self-service, and server-verified geofenced check-in are present in this checkout. The public repository reports a successful Vercel deployment check for commit `25b818d`; the final documentation/test commit has not yet received its own provider check at the time this file was written. Production configuration and the live application URL have not been independently verified.
+
+The permission model follows the brief’s matrix: Admin manages company setup, user logins, audit, announcements, and payroll finalization; HR registers and edits employees, manages salary structures and CSV tools, and decides employee attendance/leave requests; Employees act only on their own records. Admin sees the People directory read-only. The two deliberate exceptions are HR self-service (HR needs a linked staff profile to use its own check-in/leave) and Admin cover for an HR teammate’s own pending request; neither role can decide its own request.
 
 ## Verification evidence
 
 | Check | Result | Evidence / limits |
 |---|---|---|
-| Source inventory | Reviewed | App, routes, services, configuration, and prompt pack reviewed; sensitive archive and partial download were excluded. |
-| `npm run typecheck` | Passed | 2026-10-25; `tsc --noEmit` completed with exit code 0 after the UI and email verification changes. |
-| `npm run lint` | Passed | 2026-10-25; ESLint completed with exit code 0 and no warnings after the UI and email verification changes. |
-| `npm run build` | Passed | 2026-10-25; Next.js 16.4.3 production build completed, all 34 static pages generated, API routes listed. |
-| Unit/integration tests | Not run | No authored `*.test.*` or `*.spec.*` files found; do not interpret this as passing coverage. |
-| Local app + MongoDB | Running | `.env.local` contains a generated session secret; `docker compose ps` reports both app and MongoDB healthy. `GET /api/health` returned 200. `GET /api/session` returned `initialized: true` while unauthenticated; account and company data were not inspected. |
-| Browser/role walkthrough | Not verified | Local server is available at `http://127.0.0.1:3000`. The installation appears initialized; sign in with its existing Admin credentials. No credentials were created or reset in this task. |
-| MongoDB domain flows | Not verified | Local database ping passed, but employee/leave/payroll workflows have not been exercised with created records. |
-| Gemini | Not verified | Optional API key is not configured; disabled state is the expected no-key behavior. |
-| Docker image and Compose stack | Passed / running | `docker compose up --build -d` built and started the production app and MongoDB services. Both containers report healthy; the app is bound to `127.0.0.1:3000`. |
-| Dependency audit | Follow-up needed | Docker `npm ci` reported 3 vulnerabilities (1 moderate, 2 critical) in the full development dependency tree; `npm ci --omit=dev` reported 0 in the production-only tree. Detailed advisories have not been retrieved or fixed. |
-| GitHub repository and CI | Passed | Source was pushed to the private repository `https://github.com/xdtechnodreamx0/HCM-Lite`. Run `40141569249` passed `npm ci`, lint, typecheck, and production build. GitHub emitted non-blocking Node 20 action deprecation and runner-image notices. `.env.local` is ignored and was not pushed. |
-| Render/Atlas deployment | Not performed | No account, database credentials, or deployment URL was supplied. |
-| Email verification delivery | Implemented, not configured | Resend-backed HTML email, expiring hashed token, verification and resend routes are ready for initial Admin setup and new HR/employee accounts. A real verified sender and API key are still required; no email was sent during this work. |
+| Source inventory | Reviewed | App, routes, services, configuration, tests, and prompt pack reviewed. `.env.local` is ignored and was not committed. |
+| `npm run typecheck` | Passed | 2026-11-10; `tsc --noEmit` completed with exit code 0 after the final code changes. |
+| `npm run lint` | Passed | 2026-11-10; ESLint completed with exit code 0 and no warnings after the final code changes. |
+| Unit tests | Passed | 2026-11-10; `npm test` ran 43 tests across 9 files, all passed. Coverage includes dates/time zones, attendance rules, geofence math, leave rules, payroll/tax, CSV safety, dashboard metrics, and currency. |
+| `npm run build` | Passed | 2026-11-10; Next.js 16.4.3 production build completed, generated 41 static pages, and listed all page/API routes. |
+| Dependency audit | Passed | 2026-11-10; `npm audit` reports 0 vulnerabilities after removing the unused `mongodb-memory-server` dev dependency and pinning the TypeScript-ESLint minimatch override to a patched release. |
+| Local app + MongoDB | Previously passed, not rerun | On 2026-10-25, Compose reported app, demo app, and MongoDB healthy; `/api/health` returned `200 {"status":"ok"}`. Docker Desktop’s daemon was unavailable during the 2026-11-10 final pass, so this was not repeated. |
+| Guest demo and role smoke check | Previously passed | On 2026-10-25, `/demo` returned HTTP 200 and Admin, HR, and Employee sign-ins reached their dashboards on the isolated demo database. This was a narrow check, not full workflow coverage. |
+| HR self-service and Admin cover | Unit-tested rules; live walkthrough pending | Service guards reject self-approval and limit Admin decisions to HR-linked employees. The demo seed includes a linked HR profile, a pending HR leave request, HR usage data, and an Admin notification. Browser walkthrough still requires a running database. |
+| Geofenced check-in | Unit-tested math; live browser check pending | When Admin sets office latitude/longitude, the browser sends coordinates and accuracy, and the server applies the Haversine radius/accuracy rules before writing the record. The demo leaves coordinates unset to avoid a location prompt. |
+| Notification flow | Implemented; not verified against a live database | New leave/correction requests notify the appropriate reviewer role, decisions notify the requester, and payroll finalization notifies employees with a linked login. |
+| MongoDB domain flows | Not verified live in the final pass | Local database ping passed previously, but a seeded end-to-end employee/leave/payroll walkthrough was not possible without the Docker daemon. |
+| Gemini | Disabled locally | The authenticated demo status previously returned `available: false`; no Gemini key is configured in that environment. Production key status is unknown. |
+| Docker image and Compose stack | Previously passed, not rerun | The production and demo containers built and reported healthy on 2026-10-25. The daemon was unavailable on 2026-11-10, so the final image build was not repeated. |
+| GitHub repository and CI | Passed on `25b818d`; final commit pending | Public repository: `https://github.com/xdtechnodreamx0/HCM-Lite`. Main CI run `40144775636` passed, and Vercel reported `Deployment has completed` for `25b818d`. The workflow now also runs `npm test`. The post-documentation commit check must be read from GitHub after push. |
+| Vercel production runtime | Partially verified | Provider deployment status is successful, but the public alias, `/api/health`, production database connection, environment variables, and account setup were not independently checked. Use the Vercel project’s **Visit** link and follow [DEPLOYMENT.md](DEPLOYMENT.md). |
+| Email verification and password-reset delivery | Implemented, not configured | Resend-backed HTML email and expiring hashed tokens are implemented. A Resend key and verified sender are still required; no email was sent during this work. |
+| Browser/E2E suite | Not authored | Playwright is configured, but no browser spec is committed. Manual demo steps are in [DEMO_RUNBOOK.md](DEMO_RUNBOOK.md). |
 
 ## Known external setup
 
-The local `.env.local` and Docker Compose stack are already configured. The local database reports that initial setup is complete, so do not rerun setup or reset it; sign in with the existing Admin credentials. A production review still needs a separate empty-database walkthrough, role/authorization checks, and deployment verification. These are not represented as passed.
+The local `.env.local` and Docker Compose configuration are present. Production database state is unknown; complete first Admin setup only if it is empty. For production, verify required Vercel variables and `/api/health`. The local Gemini key is absent, real email delivery needs Resend configuration, and Docker Desktop must be running for a live Mongo walkthrough. The seeded demo is intentionally loopback-only and must never be exposed publicly.
 
 ## Next checks
 
-Run `npm run lint`, `npm run typecheck`, and `npm run build` from the project root after code changes. Use a separate isolated database for manual walkthroughs. Do not reset a database containing user data.
+1. Start Docker Desktop, run the isolated demo seed from the README, and record a role-by-role walkthrough in this file.
+2. Exercise employee leave/correction submission, HR decisions, HR self-request Admin cover, geofenced check-in with a configured office radius, and finalized-payslip notifications against the seeded database.
+3. Verify the new GitHub Actions run and Vercel deployment check after pushing the final commit.
+4. Configure Resend and Gemini only with real server-side credentials, then verify email delivery and representative AI questions; do not fabricate either result when credentials are absent.

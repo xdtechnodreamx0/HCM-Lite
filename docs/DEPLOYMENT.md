@@ -1,32 +1,50 @@
-# Deployment preparation
+# Vercel deployment
 
-The target in the project brief is a Dockerized Render web service with MongoDB Atlas. No service, credentials, or public URL is configured by this repository. Treat these as preparation steps, not a completed deployment.
+The source is in the [public GitHub repository](https://github.com/xdtechnodreamx0/HCM-Lite). Vercel reported `Deployment has completed` for commit `25b818d`; the final documentation/test commit needs its own provider check after it is pushed. A provider status confirms the deployment job finished; it does not confirm that the production database, sign-in, email, or AI integrations work. Verify those at the current Vercel project URL.
 
-## Build and run
+## Required Vercel variables
 
-The multi-stage `Dockerfile` builds Next.js standalone output and runs as an unprivileged user on port 3000. Configure the platform health path as `/api/health`; it checks MongoDB and returns a generic `503` when the database cannot be reached. Required runtime environment:
+In Vercel, open the `hcm_lite` project’s **Settings → Environment Variables**. Add these values for **Production** (and Preview if you want preview deployments to use a separate database):
 
-- `MONGODB_URI`: Atlas connection URI
-- `MONGODB_DB`: dedicated database name
-- `SESSION_SECRET`: fresh random value of at least 32 characters
-- `APP_BASE_URL`: exact HTTPS service origin
-- `GEMINI_API_KEY`: optional; keep server-side only
-- `GEMINI_MODEL`: optional; defaults to `gemini-3.8-flash`
-- `RESEND_API_KEY` and `EMAIL_FROM`: optional pair for real first-Admin verification emails. `EMAIL_FROM` must be a sender on a domain verified with Resend.
+| Name | Value |
+|---|---|
+| `MONGODB_URI` | MongoDB Atlas connection URI; keep it secret. |
+| `SESSION_SECRET` | A fresh random secret of at least 32 characters. |
+| `APP_BASE_URL` | The exact public HTTPS origin for this Vercel deployment, with no trailing path. |
+| `MONGODB_DB` | Optional; defaults to `hcm_lite`. Use a dedicated database name. |
+| `GEMINI_API_KEY` | Optional; required for AI answers. Keep it server-side. |
+| `GEMINI_MODEL` | Optional; defaults to `gemini-3.8-flash`. |
+| `RESEND_API_KEY` | Optional; required for real verification and reset emails. |
+| `EMAIL_FROM` | Optional with Resend; a sender on a domain verified with Resend. Configure it together with `RESEND_API_KEY`. |
 
-If enabling email, configure both Resend values together. First Admin setup and newly created HR/employee accounts get a 30-minute verification link, and cannot sign in until it is used. Resend requests are rate limited and the verification token is stored only as a hash. The email provider is optional; setting only one of the two values is a configuration error.
+To generate a session secret locally in PowerShell, run:
 
-Before publishing, run lint, typecheck, and production build, then build the Docker image and test `/api/health` against a disposable Atlas database. Add only the deployment's currently documented outbound IP ranges to the Atlas IP access list. Never use `0.0.0.0/0`.
+```powershell
+[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
+```
 
-## Operations
+Never paste a database URI, API key, or session secret into GitHub, source files, or a chat. When changing environment variables, trigger a new deployment so the running functions receive them.
 
-- Create a dedicated least-privilege database user; store credentials in Render's secret environment settings.
-- Use a separate empty database for a judge/demo workspace. Complete Admin setup through the UI, then create real demo accounts there.
-- Verify the service URL and health response after deploy. Warm-up/availability must be observed rather than assumed.
-- Confirm Atlas backup/restore support for the selected tier before relying on it. Export business data before a planned reset; never run a reset against a production URI.
-- Rotate the Mongo credential, session secret, and optional Gemini key through their providers if exposed. Session-secret rotation invalidates existing sessions.
-- Review provider pricing and Gemini quotas before enabling external calls; no paid tier is assumed.
+## Verify the published app
 
-## Current blocker
+1. In Vercel, open the latest deployment and click **Visit** to get the shareable URL.
+2. Open `https://YOUR-VERCEL-DOMAIN/api/health`. It should return `{"status":"ok"}`; a failure means the production database connection or required settings still need attention.
+3. Open the site and complete the first Admin setup only if the production database is empty. Do not use the demo password or rerun setup against a database that already has company data.
+4. Sign in, then check the AI panel. It needs `GEMINI_API_KEY`; the app reports its disabled state when no key is configured.
+5. Create an HR login and link it to a staff profile in **User access** if HR should use its own check-in, leave, and payslip. Confirm the employee directory stays read-only for Admin and manageable for HR.
+6. If geofenced check-in is required, set office latitude/longitude and a radius in **Organization**. Check-in will then request browser location; the server decides using the Haversine distance and GPS accuracy. The demo company intentionally leaves these coordinates unset.
+7. Signup verification and password-reset emails need both Resend variables and a verified sender domain. Until configured, the app does not claim that an email was sent.
 
-This workspace has no configured Atlas URI, Render account/service, Gemini key, or verified public deployment. The deployment steps above cannot be completed or claimed live without those external resources.
+## Database and demo safety
+
+- Use a dedicated production database user with only the permissions the app needs. Configure Atlas network access with a supported, restricted egress setup; do not expose the database broadly.
+- Keep local fictional demo accounts (`admin@northstar.demo`, `hr@northstar.demo`, `employee@northstar.demo`, password `12345`) on the loopback-only demo service. Never load them into a public production database.
+- The demo HR account is linked to the fictional Iqra Javed staff profile and has a seeded pending self-request for Admin review. This demonstrates HR self-service and segregation of duties; do not copy that stance to production without a deliberate policy decision.
+- The demo guest page prefills a role email on sign-in, so treat it as an explicitly fake workspace. Keep the demo service on port 3001 and never expose it through a public alias.
+- Use a separate empty database for previews and manual setup checks. Do not reset or seed a database containing real records.
+- Rotate database, session, Gemini, and Resend secrets through their providers if exposed. Changing `SESSION_SECRET` signs out existing users.
+- Review database backup/restore support and external AI quotas before relying on those services.
+
+## Local production container
+
+The multi-stage `Dockerfile` builds Next.js standalone output and runs as an unprivileged user on port 3000. Docker Compose binds the app and MongoDB ports to loopback. For local startup and the isolated demo, follow the commands in the [README](../README.md).

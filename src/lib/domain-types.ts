@@ -43,6 +43,8 @@ export type EmployeeRecord = {
   createdAt: string;
 };
 
+export type DashboardFilters = { start: string; end: string; departmentId: string };
+
 export type AttendanceRecord = {
   id: string | null;
   employeeId: string;
@@ -88,6 +90,7 @@ export type LeaveRecord = {
   reason: string;
   status: LeaveStatus;
   decisionComment: string;
+  canDecide?: boolean;
   createdAt: string;
 };
 
@@ -107,6 +110,8 @@ export type SessionPayload = {
 export type DashboardPayload = {
   role: Role;
   asOf: string;
+  snapshotDate?: string;
+  filters?: { start: string; end: string; departmentId: string | null };
   kpis: Array<{ label: string; value: string | number; note: string }>;
   attendance: { present: number; onLeave: number; late: number; absent: number };
   pendingLeaves: number;
@@ -219,5 +224,6 @@ export type CorrectionRecord = {
   reason: string;
   status: "pending" | "approved" | "rejected";
   comment?: string;
+  canDecide?: boolean;
   createdAt: string;
 };

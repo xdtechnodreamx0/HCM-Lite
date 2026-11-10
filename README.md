@@ -5,7 +5,7 @@ People.works is a role-scoped human capital management app for one company. It u
 ## Requirements
 
 - Docker Desktop (recommended for the full local app)
-- Optional for hot-reload development outside Docker: Node.js 20.9 or newer and npm
+- Optional for hot-reload development outside Docker: Node.js 20.19 or newer and npm
 - Optional: a Gemini API key to enable the AI assistant
 
 ## Run locally with Docker
@@ -40,7 +40,9 @@ Remove-Item Env:MONGODB_DB
 docker compose --profile demo up -d --build app-demo
 ```
 
-Open `http://localhost:3001/demo` for the fictional guest dashboard or `http://localhost:3001` to sign in. Demo usernames are `admin@northstar.demo`, `hr@northstar.demo`, and `employee@northstar.demo`; each uses password `12345`. These credentials are intentionally weak and are only for a loopback demo; never expose this demo service publicly. The seed script refuses a non-empty database unless it finds its own single marked demo company.
+Open `http://localhost:3001/demo` for the fictional guest dashboard or `http://localhost:3001` to sign in. Demo usernames are `admin@northstar.demo`, `hr@northstar.demo`, and `employee@northstar.demo`; each uses password `12345`. The guest page’s role cards prefill the selected email on the sign-in screen. These credentials are intentionally weak and are only for a loopback demo; never expose this demo service publicly. The seed script refuses a non-empty database unless it finds its own single marked demo company.
+
+The demo HR login is linked to the fictional staff profile of Iqra Javed, so HR can check in and request leave from the same workspace where it reviews the team. HR cannot approve its own request; a seeded pending HR leave request appears to the Admin for review. This is an explicit segregation-of-duties exception for the demo, not a claim that Admins approve ordinary employee leave. The demo company has no office coordinates set, so check-in does not ask for browser location; when an Admin configures coordinates, the server verifies the reported position with the Haversine distance instead of trusting the browser.
 
 Stop the demo service with `docker compose --profile demo stop app-demo`. Stop the whole local stack with `docker compose down` when finished. MongoDB data remains in the named local volume.
 
@@ -56,32 +58,37 @@ Setup is permanent for a given database. To start over, point the app to a diffe
 
 ## Main workflows
 
-- **Admin:** configure company/calendar policies, add organization records and users, review dashboards and audit history, and finalize payroll.
-- **HR:** manage the employee directory and salary structures, review attendance/corrections and leave, draft payroll, and post announcements.
-- **Employee:** change their own profile fields, check in/out, request corrections and leave, view balances and payslips, and read announcements.
+- **Admin:** configure company/calendar policies, add organization records and user logins, link an HR login to a staff profile, review the company dashboard and audit history, post announcements, and finalize payroll. Admin sees the People directory in read-only mode, matching the brief; HR registers and edits employee records.
+- **HR:** manage the employee directory, salary structures, CSV import/export, attendance board, corrections and leave (except their own), draft payroll, and post announcements. An HR login linked to a staff profile can also check in/out, request leave, and download its own payslip.
+- **Employee:** change their own phone and address, check in/out, request corrections and leave, use smart leave, view balances and payslips, and read announcements.
+
+Admin cover is limited to an HR teammate’s own pending leave or attendance correction. Employee requests stay with HR, and nobody can decide their own request. Approval and correction decisions require a short comment and are recorded in the audit trail. New leave/correction submissions notify the reviewers, decisions notify the requester, and payroll finalization notifies employees that their payslip is ready.
 
 ## Checks
 
 ```bash
 npm run lint
 npm run typecheck
+npm test
 npm run build
 ```
 
-`npm test` and `npm run e2e` are configured, but this checkout currently has no authored test cases. See [BUILD_STATUS](docs/BUILD_STATUS.md) for the checks actually run and the outstanding runtime verification.
+The Vitest suite contains 43 unit tests in 9 files covering date/time-zone handling, attendance classification, geofence math, leave rules, payroll and tax calculations, CSV safety, dashboard metrics, and PKR currency formatting. `npm run e2e` is wired for Playwright, but no browser spec is committed; use [DEMO_RUNBOOK](docs/DEMO_RUNBOOK.md) for a guided manual walkthrough. See [BUILD_STATUS](docs/BUILD_STATUS.md) for the latest evidence and the remaining runtime limits.
 
 ## Production build
 
 `npm run build` creates the Next.js production build. `npm start` runs it on port 3000. The app reads server-only environment variables listed in `.env.example`. `GET /api/health` returns `200` only while MongoDB responds to a ping; it returns a generic `503` without database details when unavailable.
 
-The included Dockerfile builds a standalone production image and runs as a non-root user. See [DEPLOYMENT](docs/DEPLOYMENT.md) before using Render/Atlas. No public deployment is configured from this checkout.
+The included Dockerfile builds a standalone production image and runs as a non-root user. The source repository is [public on GitHub](https://github.com/xdtechnodreamx0/HCM-Lite), and GitHub currently reports a successful Vercel deployment check for `main`. A successful deploy check alone does not confirm that production environment variables or the database connection work; follow [DEPLOYMENT](docs/DEPLOYMENT.md) and verify `/api/health` on the Vercel URL.
+
+For Vercel, configure `MONGODB_URI`, `SESSION_SECRET`, and `APP_BASE_URL` in the project’s Environment Variables. `MONGODB_DB` is optional and defaults to `hcm_lite`. Add `GEMINI_API_KEY` to enable AI, and add both `RESEND_API_KEY` and `EMAIL_FROM` to send verification and password-reset emails. Keep all values server-side and redeploy after changing them.
 
 ## Security notes
 
 - Never commit `.env`, `.env.local`, or real credentials.
 - Keep the Gemini key server-side; model tools are allowlisted and read-only.
 - Scope data access by company and session role on the server.
-- Restrict Atlas network access to the deployment's documented outbound IP ranges. Do not add `0.0.0.0/0`.
+- Configure Atlas network access for the deployment using its current supported egress method; do not expose the database broadly.
 - Do not load the private source archive into an agent, build context, or public repository.
 
 See [API contract](docs/API_CONTRACT.md), [data model](docs/DATA_MODEL.md), [demo runbook](docs/DEMO_RUNBOOK.md), and [build status](docs/BUILD_STATUS.md).

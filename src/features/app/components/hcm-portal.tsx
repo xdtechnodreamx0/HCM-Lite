@@ -9,7 +9,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { apiRequest } from "@/lib/api-client";
 import type {
-  AnnouncementRecord, AttendanceRecord, CorrectionRecord, DashboardPayload,
+  AnnouncementRecord, AttendanceRecord, CorrectionRecord, DashboardFilters, DashboardPayload,
   EmployeeRecord, LeaveRecord, NotificationRecord, OrganizationPayload,
   PayrollRunRecord, SessionPayload, UserRecord,
 } from "@/lib/domain-types";
@@ -89,11 +89,17 @@ export function HcmPortal() {
   const [quickResults, setQuickResults] = useState<EmployeeRecord[]>([]);
   const [quickSearchBusy, setQuickSearchBusy] = useState(false);
   const [peopleSearchSeed, setPeopleSearchSeed] = useState<{ query: string; key: number } | null>(null);
+  const [dashboardFilters, setDashboardFilters] = useState<DashboardFilters>({ start: "", end: "", departmentId: "" });
 
   const loadData = useCallback(async (role: string) => {
     setRefreshing(true);
+    const dashboardParams = new URLSearchParams();
+    if (dashboardFilters.start) dashboardParams.set("start", dashboardFilters.start);
+    if (dashboardFilters.end) dashboardParams.set("end", dashboardFilters.end);
+    if (dashboardFilters.departmentId) dashboardParams.set("departmentId", dashboardFilters.departmentId);
+    const dashboardQuery = dashboardParams.size ? `?${dashboardParams.toString()}` : "";
     const requests: Array<Promise<unknown>> = [
-      safeGet<DashboardPayload>("/api/dashboard", null as unknown as DashboardPayload),
+      safeGet<DashboardPayload>(`/api/dashboard${dashboardQuery}`, null as unknown as DashboardPayload),
       safeGet<{ items: EmployeeRecord[] }>("/api/employees?page=1&pageSize=100", { items: [] }),
       safeGet<AttendanceRecord[]>("/api/attendance", []),
       safeGet<LeaveRecord[]>("/api/leaves", []),
@@ -128,7 +134,7 @@ export function HcmPortal() {
       organization, payroll, users, audit,
     });
     setRefreshing(false);
-  }, []);
+  }, [dashboardFilters]);
 
   const refreshSession = useCallback(async () => {
     setLoadError("");
@@ -270,6 +276,8 @@ export function HcmPortal() {
             data={data}
             peopleSearchSeed={peopleSearchSeed}
             assistantContext={assistantContext}
+            dashboardFilters={dashboardFilters}
+            onDashboardFilters={setDashboardFilters}
             refresh={() => currentUser ? loadData(currentUser.role) : Promise.resolve()}
             notify={setToast}
             goTo={setActiveView}

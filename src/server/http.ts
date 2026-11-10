@@ -59,3 +59,13 @@ export async function readJson<T>(request: Request): Promise<T> {
     throw new (await import("@/lib/errors")).AppError(400, "Invalid JSON body.");
   }
 }
+
+export async function readOptionalJson<T>(request: Request): Promise<T | undefined> {
+  const text = await request.text();
+  if (!text.trim()) return undefined;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new (await import("@/lib/errors")).AppError(400, "Invalid JSON body.");
+  }
+}

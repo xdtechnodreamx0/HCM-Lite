@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { ArrowRight, Phone, UserRound } from "lucide-react";
 import { apiRequest, jsonBody } from "@/lib/api-client";
 import type {
-  AttendanceRecord, AnnouncementRecord, CorrectionRecord, DashboardPayload, EmployeeRecord,
+  AttendanceRecord, AnnouncementRecord, CorrectionRecord, DashboardFilters, DashboardPayload, EmployeeRecord,
   LeaveRecord, NotificationRecord, OrganizationPayload, PayrollRunRecord, SessionPayload, UserRecord,
 } from "@/lib/domain-types";
 import { apiMessage } from "@/lib/errors";
@@ -33,7 +33,7 @@ type PortalData = {
   users: UserRecord[];
 };
 
-export function PortalView({ view, user, company, data, refresh, notify, goTo, peopleSearchSeed, assistantContext }: {
+export function PortalView({ view, user, company, data, refresh, notify, goTo, peopleSearchSeed, assistantContext, dashboardFilters, onDashboardFilters }: {
   view: ViewId;
   user: NonNullable<SessionPayload["user"]>;
   company: SessionPayload["company"];
@@ -43,20 +43,22 @@ export function PortalView({ view, user, company, data, refresh, notify, goTo, p
   goTo: (view: ViewId) => void;
   peopleSearchSeed: { query: string; key: number } | null;
   assistantContext?: string;
+  dashboardFilters: DashboardFilters;
+  onDashboardFilters: (filters: DashboardFilters) => void;
 }) {
   switch (view) {
     case "overview":
-      return <DashboardView dashboard={data.dashboard} announcements={data.announcements} user={user} onGo={goTo} />;
+      return <DashboardView dashboard={data.dashboard} announcements={data.announcements} user={user} onGo={goTo} organization={data.organization} filters={dashboardFilters} onApplyFilters={onDashboardFilters} />;
     case "organization":
       return <OrganizationView organization={data.organization} role={user.role} refresh={refresh} notify={notify} />;
     case "users":
-      return <UsersView users={data.users} actorId={user.id} refresh={refresh} notify={notify} />;
+      return <UsersView users={data.users} employees={data.employees} actorId={user.id} refresh={refresh} notify={notify} />;
     case "employees":
       return <PeopleView key={peopleSearchSeed?.key ?? "people-directory"} employees={data.employees} organization={data.organization} role={user.role} refresh={refresh} notify={notify} searchSeed={peopleSearchSeed?.query ?? ""} />;
     case "attendance":
-      return <AttendanceView attendance={data.attendance} corrections={data.corrections} organization={data.organization} company={company} role={user.role} refresh={refresh} notify={notify} />;
+      return <AttendanceView attendance={data.attendance} corrections={data.corrections} organization={data.organization} company={company} role={user.role} employeeId={user.employeeId} refresh={refresh} notify={notify} />;
     case "leave":
-      return <LeaveView leaves={data.leaves} role={user.role} refresh={refresh} notify={notify} goToAssistant={() => goTo("assistant")} />;
+      return <LeaveView leaves={data.leaves} role={user.role} employeeId={user.employeeId} refresh={refresh} notify={notify} goToAssistant={() => goTo("assistant")} />;
     case "payroll":
       return <PayrollView payroll={data.payroll} role={user.role} employeeId={user.employeeId} refresh={refresh} notify={notify} />;
     case "announcements":
@@ -64,11 +66,11 @@ export function PortalView({ view, user, company, data, refresh, notify, goTo, p
     case "audit":
       return <AuditView rows={data.audit} />;
     case "assistant":
-      return <AssistantView role={user.role} dashboard={data.dashboard} organization={data.organization} company={company} currentPage={assistantContext ?? "overview"} />;
+      return <AssistantView role={user.role} employeeId={user.employeeId} dashboard={data.dashboard} dashboardFilters={dashboardFilters} organization={data.organization} company={company} currentPage={assistantContext ?? "overview"} />;
     case "profile":
       return <ProfileView employee={data.employees[0]} companyName={company?.name ?? ""} refresh={refresh} notify={notify} />;
     default:
-      return <DashboardView dashboard={data.dashboard} announcements={data.announcements} user={user} onGo={goTo} />;
+      return <DashboardView dashboard={data.dashboard} announcements={data.announcements} user={user} onGo={goTo} organization={data.organization} filters={dashboardFilters} onApplyFilters={onDashboardFilters} />;
   }
 }
 

@@ -104,7 +104,7 @@ export async function getEmployee(actor: SessionUser, employeeId: string) {
 }
 
 export async function createEmployee(actor: SessionUser, raw: unknown) {
-  requireRole(actor, ["ADMIN", "HR"]);
+  requireRole(actor, ["HR"]);
   const input = employeeSchema.parse(raw);
   const db = await collections();
   const department = await db.departments.findOne({ id: input.departmentId, companyId: actor.companyId });

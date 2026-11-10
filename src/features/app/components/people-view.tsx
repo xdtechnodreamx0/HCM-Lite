@@ -43,7 +43,7 @@ export function PeopleView({ employees, organization, role, refresh, notify, sea
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [saving, setSaving] = useState(false);
-  const canCreate = role === "HR" || role === "ADMIN";
+  const canManagePeople = role === "HR";
   const pages = Math.max(1, Math.ceil(total / 20));
 
   useEffect(() => {
@@ -103,8 +103,8 @@ export function PeopleView({ employees, organization, role, refresh, notify, sea
   const filteredRows = useMemo(() => rows, [rows]);
 
   return <>
-    <PageHeading eyebrow="PEOPLE DIRECTORY" title="People" description="A thoughtful overview of the people behind the work. New team profiles get Employee access by default." action={canCreate ? <PrimaryButton onClick={() => { setShowForm((visible) => !visible); setError(""); setSuccess(""); }}><Plus size={16} /> Add employee</PrimaryButton> : <span className="role-view-chip"><Users size={14} />Company directory</span>} />
-    {showForm && canCreate && <Panel title="Add a team member" subtitle="A login is created with a one-time temporary password.">
+    <PageHeading eyebrow="PEOPLE DIRECTORY" title="People" description="A thoughtful overview of the people behind the work. New team profiles get Employee access by default." action={canManagePeople ? <PrimaryButton onClick={() => { setShowForm((visible) => !visible); setError(""); setSuccess(""); }}><Plus size={16} /> Add employee</PrimaryButton> : <span className="role-view-chip"><Users size={14} />Company directory · view only</span>} />
+    {showForm && canManagePeople && <Panel title="Add a team member" subtitle="A login is created with a one-time temporary password.">
       <form className="form-grid" onSubmit={createEmployee}>
         <label className="field-label">Employee code<input name="employeeCode" required minLength={2} maxLength={32} placeholder="NW-024" /></label>
         <label className="field-label">Full name<input name="name" required minLength={2} autoComplete="name" placeholder="Team member’s name" /></label>
@@ -120,7 +120,7 @@ export function PeopleView({ employees, organization, role, refresh, notify, sea
         <div className="form-actions span-two"><FormError>{error}</FormError><FormSuccess>{success}</FormSuccess>{temporaryPassword && <div className="temp-credential"><BadgeCheck size={16} /><span>Temporary password</span><code>{temporaryPassword}</code><button type="button" onClick={() => void navigator.clipboard?.writeText(temporaryPassword)}>Copy</button></div>}<PrimaryButton disabled={saving}>{saving ? "Creating…" : "Create employee"}<ArrowRight size={15} /></PrimaryButton></div>
       </form>
     </Panel>}
-    {canCreate && <Panel title="Import employees from CSV" subtitle="Validate a small CSV file first. Every imported employee receives a one-time password." action={<button className="button button-secondary button-small" type="button" onClick={() => { setShowImport((visible) => !visible); setCsvError(""); }}>{showImport ? "Close import" : <><FileSpreadsheet size={15} /> Import CSV</>}</button>}>
+    {canManagePeople && <Panel title="Import employees from CSV" subtitle="Validate a small CSV file first. Every imported employee receives a one-time password." action={<button className="button button-secondary button-small" type="button" onClick={() => { setShowImport((visible) => !visible); setCsvError(""); }}>{showImport ? "Close import" : <><FileSpreadsheet size={15} /> Import CSV</>}</button>}>
       {showImport && <div className="csv-import-area">
         <label className="field-label">Employee CSV file<input type="file" accept=".csv,text/csv" onChange={async (event) => {
           const file = event.currentTarget.files?.[0];
@@ -151,7 +151,7 @@ export function PeopleView({ employees, organization, role, refresh, notify, sea
         </div>}
       </div>}
     </Panel>}
-    <Panel title="All employees" subtitle={`${total} ${total === 1 ? "person" : "people"} in this workspace.`} className="people-table-panel" action={<button className="button button-secondary button-small" onClick={() => void downloadApiFile("/api/employees/export").then(() => notify("Employee CSV downloaded.")).catch((reason: unknown) => setError(apiMessage(reason)))}><Download size={15} /> Export CSV</button>}>
+    <Panel title="All employees" subtitle={`${total} ${total === 1 ? "person" : "people"} in this workspace.`} className="people-table-panel" action={canManagePeople ? <button className="button button-secondary button-small" onClick={() => void downloadApiFile("/api/employees/export").then(() => notify("Employee CSV downloaded.")).catch((reason: unknown) => setError(apiMessage(reason)))}><Download size={15} /> Export CSV</button> : <span className="small-text muted">CSV tools are available to HR.</span>}>
       <div className="table-toolbar"><form className="table-search" onSubmit={(event) => { event.preventDefault(); setLoadingRows(true); setPage(1); setQuery(queryInput.trim()); }}><Search size={16} /><input aria-label="Search people" placeholder="Search name, code or email" value={queryInput} onChange={(event) => setQueryInput(event.target.value)} /><button type="submit">Search</button></form><div className="people-filter-controls"><label className="filter-label">Status <select aria-label="Filter by employee status" value={statusFilter} onChange={(event) => { setLoadingRows(true); setPage(1); setStatusFilter(event.target.value); }}><option value="all">All statuses</option><option value="active">Active</option><option value="probation">Probation</option><option value="exited">Exited</option></select></label><label className="filter-label">Department <select aria-label="Filter by employee department" value={departmentFilter} onChange={(event) => { setLoadingRows(true); setPage(1); setDepartmentFilter(event.target.value); }}><option value="">All departments</option>{organization?.departments.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label className="filter-label">Sort by <select aria-label="Sort employees" value={sortBy} onChange={(event) => { setLoadingRows(true); setSortBy(event.target.value as typeof sortBy); }}><option value="name">Name</option><option value="joiningDate">Joining date</option><option value="employeeCode">Employee code</option></select></label><button className="button button-quiet button-small" type="button" aria-label={`Sort ${sortDirection === "asc" ? "descending" : "ascending"}`} onClick={() => { setLoadingRows(true); setSortDirection((value) => value === "asc" ? "desc" : "asc"); }}>{sortDirection === "asc" ? "A–Z" : "Z–A"}</button></div><span className="toolbar-caption">Search is scoped to your company</span></div>
       <FormError>{error}</FormError>
       <div className="table-scroll"><table className="data-table"><thead><tr><th>EMPLOYEE</th><th>DEPARTMENT</th><th>DESIGNATION</th><th>JOINED</th><th>STATUS</th><th className="numeric-cell">BASIC PAY</th><th /></tr></thead><tbody>
@@ -180,18 +180,31 @@ function SalaryEditor({ employee, onSaved, notify }: { employee: EmployeeRecord;
   return <form className="salary-edit-form" onSubmit={save}><strong>Update salary</strong><label className="field-label">Basic monthly salary (PKR)<input required type="number" min="1" max="100000000" step="0.01" value={basicSalary} onChange={(event) => setBasicSalary(event.target.value)} /></label><label className="field-label">Effective from<input required type="date" value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} /></label><FormError>{error}</FormError><PrimaryButton disabled={saving}>{saving ? "Saving…" : "Save salary change"}<ArrowRight size={14} /></PrimaryButton></form>;
 }
 
-export function UsersView({ users, actorId, refresh, notify }: { users: UserRecord[]; actorId: string; refresh: () => Promise<void>; notify: (message: string) => void }) {
+export function UsersView({ users, employees, actorId, refresh, notify }: { users: UserRecord[]; employees: EmployeeRecord[]; actorId: string; refresh: () => Promise<void>; notify: (message: string) => void }) {
   const [error, setError] = useState("");
   const [credential, setCredential] = useState("");
   const [busyId, setBusyId] = useState("");
+  const unlinkedProfiles = employees.filter((employee) => !employee.userId);
+  const employeeNameById = useMemo(() => new Map(employees.map((employee) => [employee.id, employee.name])), [employees]);
   async function addStaff(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(""); setCredential("");
-    const values = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const values = new FormData(form);
     try {
       const role = String(values.get("role"));
-      const result = await apiRequest<{ temporaryPassword: string }>("/api/users", { method: "POST", body: jsonBody({ name: String(values.get("name")), email: String(values.get("email")), role }) });
-      setCredential(result.temporaryPassword); event.currentTarget.reset(); await refresh(); notify(`${role === "ADMIN" ? "Admin" : "HR"} login created.`);
+      const employeeId = String(values.get("employeeId") ?? "");
+      const result = await apiRequest<{ temporaryPassword: string }>("/api/users", { method: "POST", body: jsonBody({ name: String(values.get("name")), email: String(values.get("email")), role, ...(employeeId ? { employeeId } : {}) }) });
+      setCredential(result.temporaryPassword); form.reset(); await refresh(); notify(`${role === "ADMIN" ? "Admin" : "HR"} login created.`);
     } catch (reason) { setError(apiMessage(reason)); }
+  }
+  async function linkProfile(user: UserRecord, employeeId: string) {
+    setBusyId(user.id); setError("");
+    try {
+      await apiRequest(`/api/users/${user.id}`, { method: "PATCH", body: jsonBody({ employeeId: employeeId || null }) });
+      await refresh();
+      notify(employeeId ? "Staff profile linked. Their own attendance and leave are now available." : "Staff profile unlinked.");
+    } catch (reason) { setError(apiMessage(reason)); }
+    finally { setBusyId(""); }
   }
   async function resetPassword(user: UserRecord) {
     setBusyId(user.id); setError("");
@@ -216,12 +229,16 @@ export function UsersView({ users, actorId, refresh, notify }: { users: UserReco
     <PageHeading eyebrow="ACCESS & SECURITY" title="User access" description="Choose who can manage company settings, people operations, or their own employee workspace." />
     <div className="module-grid">
       <Panel title="Create an Admin or HR login" subtitle="Employee accounts are created with their team profile in People. New accounts receive a one-time password." className="span-two">
-        <form className="inline-create-user" onSubmit={addStaff}><label className="field-label">Full name<input required name="name" minLength={2} placeholder="Teammate name" /></label><label className="field-label">Work email<input required type="email" name="email" placeholder="teammate@company.com" /></label><label className="field-label">Workspace role<select name="role" defaultValue="HR"><option value="HR">HR · People operations</option><option value="ADMIN">Admin · Full company access</option></select></label><PrimaryButton><Plus size={15} /> Create login</PrimaryButton></form>
+        <form className="inline-create-user" onSubmit={addStaff}><label className="field-label">Full name<input required name="name" minLength={2} placeholder="Teammate name" /></label><label className="field-label">Work email<input required type="email" name="email" placeholder="teammate@company.com" /></label><label className="field-label">Workspace role<select name="role" defaultValue="HR"><option value="HR">HR · People operations</option><option value="ADMIN">Admin · Full company access</option></select></label><label className="field-label">Staff profile <span className="optional-label">optional · enables HR self check-in & leave</span><select name="employeeId" defaultValue=""><option value="">Not linked yet</option>{unlinkedProfiles.map((employee) => <option key={employee.id} value={employee.id}>{employee.name} · {employee.employeeCode}</option>)}</select></label><PrimaryButton><Plus size={15} /> Create login</PrimaryButton></form>
+        <p className="form-hint">A linked staff profile gives an HR teammate their own check-in, leave and payslip records. You can link or change this later in the table below.</p>
         <FormError>{error}</FormError>
         {credential && <div className="temp-credential"><BadgeCheck size={16} /><span>Temporary password</span><code>{credential}</code><button type="button" onClick={() => void navigator.clipboard?.writeText(credential.split(": ").at(-1) ?? credential)}>Copy</button></div>}
       </Panel>
       <Panel title="Company accounts" subtitle={`${users.length} accounts provisioned from this workspace.`} className="span-two">
-        {users.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>ACCOUNT</th><th>ROLE</th><th>STATUS</th><th>ACCESS</th><th /></tr></thead><tbody>{users.map((user) => <tr key={user.id}><td><div className="person-cell"><Monogram name={user.name} /><span><strong>{user.name}{user.id === actorId ? " · You" : ""}</strong><small><Mail size={11} /> {user.email}</small></span></div></td><td><select aria-label={`Role for ${user.name}`} className="role-select" value={user.role} disabled={busyId === user.id || user.id === actorId || user.signupPending} onChange={(event) => void changeRole(user, event.target.value as UserRecord["role"])}><option value="EMPLOYEE">Employee</option><option value="HR">HR</option><option value="ADMIN">Admin</option></select></td><td><StatusPill value={user.signupPending ? "Signup pending" : user.active ? "Active" : "Inactive"} /></td><td><span className="small-text muted">{user.signupPending ? "Add their employee profile using this email." : user.emailVerificationRequired && !user.emailVerifiedAt ? "Email verification pending" : user.forcePasswordChange ? "Temporary password pending" : "Password set"}</span></td><td><div className="row-actions"><button className="button button-quiet button-small" disabled={busyId === user.id || !user.active} onClick={() => void resetPassword(user)}>Send reset link</button><button className="button button-quiet button-small" disabled={busyId === user.id || user.role === "ADMIN" || user.signupPending} onClick={() => void toggleUser(user)}>{user.active ? "Deactivate" : "Reactivate"}</button></div></td></tr>)}</tbody></table></div> : <EmptyState title="No accounts yet" description="Your Admin account is the first account in this company." icon={UserRound} />}
+        {users.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>ACCOUNT</th><th>ROLE</th><th>STATUS</th><th>STAFF PROFILE</th><th>ACCESS</th><th /></tr></thead><tbody>{users.map((user) => {
+          const linkable = employees.filter((employee) => !employee.userId || employee.userId === user.id);
+          return <tr key={user.id}><td><div className="person-cell"><Monogram name={user.name} /><span><strong>{user.name}{user.id === actorId ? " · You" : ""}</strong><small><Mail size={11} /> {user.email}</small></span></div></td><td><select aria-label={`Role for ${user.name}`} className="role-select" value={user.role} disabled={busyId === user.id || user.id === actorId || user.signupPending} onChange={(event) => void changeRole(user, event.target.value as UserRecord["role"])}><option value="EMPLOYEE">Employee</option><option value="HR">HR</option><option value="ADMIN">Admin</option></select></td><td><StatusPill value={user.signupPending ? "Signup pending" : user.active ? "Active" : "Inactive"} /></td><td>{user.signupPending ? <span className="small-text muted">Link via People</span> : user.role === "EMPLOYEE" ? <span className="small-text">{employeeNameById.get(user.employeeId ?? "") ?? "Linked profile"}</span> : <select aria-label={`Staff profile for ${user.name}`} className="role-select profile-link-select" value={user.employeeId ?? ""} disabled={busyId === user.id} onChange={(event) => void linkProfile(user, event.target.value)}><option value="">Not linked</option>{linkable.map((employee) => <option key={employee.id} value={employee.id}>{employee.name} · {employee.employeeCode}</option>)}</select>}</td><td><span className="small-text muted">{user.signupPending ? "Add their employee profile using this email." : user.emailVerificationRequired && !user.emailVerifiedAt ? "Email verification pending" : user.forcePasswordChange ? "Temporary password pending" : user.role !== "EMPLOYEE" && !user.employeeId ? "No own attendance / leave" : "Password set"}</span></td><td><div className="row-actions"><button className="button button-quiet button-small" disabled={busyId === user.id || !user.active} onClick={() => void resetPassword(user)}>Send reset link</button><button className="button button-quiet button-small" disabled={busyId === user.id || user.role === "ADMIN" || user.signupPending} onClick={() => void toggleUser(user)}>{user.active ? "Deactivate" : "Reactivate"}</button></div></td></tr>;
+        })}</tbody></table></div> : <EmptyState title="No accounts yet" description="Your Admin account is the first account in this company." icon={UserRound} />}
       </Panel>
     </div>
   </>;
