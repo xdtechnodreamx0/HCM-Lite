@@ -83,7 +83,7 @@ export function LeaveView({ leaves, role, employeeId, refresh, notify, goToAssis
       <span className={`leave-request-icon leave-${item.status}`}><CalendarDays size={17} /></span>
       <div className="leave-request-main">
         <div className="leave-request-title"><strong>{isOwn ? "Your request" : item.employeeName || item.employeeCode}</strong><StatusPill value={item.status} /></div>
-        <p>{item.leaveTypeName} <span>·</span> {formatDate(item.startDate)} – {formatDate(item.endDate)} <span>·</span> {item.days} {item.days === 1 ? "day" : "days"}</p>
+        <p>{item.leaveTypeName} <span>·</span> {item.startDate === item.endDate ? formatDate(item.startDate) : `${formatDate(item.startDate)} - ${formatDate(item.endDate)}`} <span>·</span> {item.days} {item.days === 1 ? "day" : "days"}</p>
         <small>{item.reason}</small>
         {item.decisionComment && <div className="decision-note"><ShieldCheck size={13} /> {item.decisionComment}</div>}
         {isOwn && role === "HR" && item.status === "pending" && <div className="decision-note"><ShieldCheck size={13} /> Your own request is waiting for an Admin to review it.</div>}

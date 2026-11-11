@@ -20,10 +20,11 @@ export function AnnouncementsView({ announcements, notifications, role, refresh,
   const [saving, setSaving] = useState(false);
   async function publish(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true); setError("");
-    const values = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const values = new FormData(form);
     try {
       await apiRequest("/api/announcements", { method: "POST", body: jsonBody({ title: String(values.get("title")), body: String(values.get("body")) }) });
-      event.currentTarget.reset(); setShowForm(false); await refresh(); notify("Announcement published to your company.");
+      form.reset(); setShowForm(false); await refresh(); notify("Announcement published to your company.");
     } catch (reason) { setError(apiMessage(reason)); }
     finally { setSaving(false); }
   }

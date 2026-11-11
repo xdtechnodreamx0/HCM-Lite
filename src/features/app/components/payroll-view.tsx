@@ -25,8 +25,12 @@ export function PayrollView({ payroll, role, employeeId, refresh, notify }: {
   useEffect(() => {
     if (isEmployee) return;
     let active = true;
+    if (!payroll.some((run) => run.period === period)) {
+      void Promise.resolve().then(() => { if (active) { setSelectedRun(null); setLoadingRun(false); } });
+      return () => { active = false; };
+    }
     void apiRequest<PayrollRunRecord>(`/api/payroll?period=${encodeURIComponent(period)}`).then((run) => { if (active) setSelectedRun(run); })
-      .catch((reason: unknown) => { if (active) { setSelectedRun(null); if (!(reason instanceof Error && "status" in reason && reason.status === 404)) setError(apiMessage(reason)); } })
+      .catch((reason: unknown) => { if (active) { setSelectedRun(null); setError(apiMessage(reason)); } })
       .finally(() => { if (active) setLoadingRun(false); });
     return () => { active = false; };
   }, [period, isEmployee, payroll]);

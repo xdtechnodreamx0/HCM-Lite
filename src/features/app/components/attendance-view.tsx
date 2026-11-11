@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Activity, ArrowRight, CalendarDays, Check, Clock3, LogIn, LogOut, MapPin, RotateCcw } from "lucide-react";
 import { apiRequest, jsonBody } from "@/lib/api-client";
-import type { AttendanceRecord, CorrectionRecord, OrganizationPayload, SessionPayload } from "@/lib/domain-types";
+import type { AttendanceBoardRow, AttendanceRecord, CorrectionRecord, OrganizationPayload, SessionPayload } from "@/lib/domain-types";
 import { apiMessage } from "@/lib/errors";
 import { EmptyState, FormError, PageHeading, Panel, PrimaryButton, SecondaryButton, StatusPill, formatDate, formatTime } from "@/features/app/components/ui";
 
@@ -21,7 +21,7 @@ export function AttendanceView({ attendance, corrections, organization, company,
   const canSelfService = Boolean(employeeId) && (role === "EMPLOYEE" || role === "HR");
   const [date, setDate] = useState(() => new Intl.DateTimeFormat("en-CA", { timeZone: company?.timezone ?? "Asia/Karachi" }).format(new Date()));
   const [departmentId, setDepartmentId] = useState("");
-  const [rows, setRows] = useState<AttendanceRecord[]>([]);
+  const [rows, setRows] = useState<AttendanceBoardRow[]>([]);
   const [hrSelfRows, setHrSelfRows] = useState<AttendanceRecord[]>([]);
   const [loadingRows, setLoadingRows] = useState(!isEmployee);
   const [loadingSelf, setLoadingSelf] = useState(role === "HR" && canSelfService);
@@ -47,7 +47,7 @@ export function AttendanceView({ attendance, corrections, organization, company,
     let active = true;
     const params = new URLSearchParams({ date });
     if (departmentId) params.set("departmentId", departmentId);
-    void apiRequest<AttendanceRecord[]>(`/api/attendance?${params.toString()}`).then((result) => { if (active) setRows(result); })
+    void apiRequest<AttendanceBoardRow[]>(`/api/attendance?${params.toString()}`).then((result) => { if (active) setRows(result); })
       .catch((reason: unknown) => { if (active) setError(apiMessage(reason)); })
       .finally(() => { if (active) setLoadingRows(false); });
     return () => { active = false; };
@@ -93,7 +93,8 @@ export function AttendanceView({ attendance, corrections, organization, company,
 
   async function submitCorrection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError("");
-    const values = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const values = new FormData(form);
     const checkIn = String(values.get("checkIn"));
     const checkOut = String(values.get("checkOut"));
     try {
@@ -103,7 +104,7 @@ export function AttendanceView({ attendance, corrections, organization, company,
         checkOutAt: checkOut ? new Date(`${selectedDate}T${checkOut}:00`).toISOString() : undefined,
         reason: String(values.get("reason")),
       }) });
-      setShowCorrection(false); event.currentTarget.reset(); await refresh(); notify("Correction request sent to HR.");
+      setShowCorrection(false); form.reset(); await refresh(); notify("Correction request sent to HR.");
     } catch (reason) { setError(apiMessage(reason)); }
     finally { setBusy(false); }
   }
@@ -136,7 +137,7 @@ export function AttendanceView({ attendance, corrections, organization, company,
       <div className="attendance-toolbar"><span className="date-display"><CalendarDays size={16} /> {formatDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</span><span className="toolbar-caption">{loadingRows ? "Loading the daily board…" : `${rows.length} team records`}</span></div>
       <Panel className="table-panel attendance-board-panel">
         {!canSelfService && !isEmployee && <FormError>{error}</FormError>}
-        {rows.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>TEAM MEMBER</th><th>DEPARTMENT</th><th>CHECK IN</th><th>CHECK OUT</th><th>WORKED</th><th>STATUS</th></tr></thead><tbody>{rows.map((item) => <tr key={`${item.employeeId}-${item.workDate ?? date}`}><td><div className="person-cell"><span className="person-monogram">{item.employeeName?.split(/\s+/).map((part) => part[0]).slice(0, 2).join("")}</span><span><strong>{item.employeeName}</strong><small>{item.employeeCode}{item.employeeId === employeeId ? " · You" : ""}</small></span></div></td><td>{item.departmentName || "—"}</td><td>{formatTime(item.checkInAt)}</td><td>{formatTime(item.checkOutAt)}</td><td>{(item.workedSeconds / 3600).toFixed(1)} h</td><td><StatusPill value={item.status} /></td></tr>)}</tbody></table></div> : <EmptyState title="No team records for this date" description="The board will fill in as people check in. Non-workdays and public holidays are kept clear." icon={Activity} />}
+        {rows.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>TEAM MEMBER</th><th>DEPARTMENT</th><th>CHECK IN</th><th>CHECK OUT</th><th>WORKED</th><th>STATUS</th></tr></thead><tbody>{rows.map((item) => <tr key={`${item.employeeId}-${item.id ?? date}`}><td><div className="person-cell"><span className="person-monogram">{item.name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("")}</span><span><strong>{item.name}</strong><small>{item.employeeCode}{item.employeeId === employeeId ? " · You" : ""}</small></span></div></td><td>{item.departmentName || "—"}</td><td>{formatTime(item.checkInAt)}</td><td>{formatTime(item.checkOutAt)}</td><td>{(item.workedSeconds / 3600).toFixed(1)} h</td><td><StatusPill value={item.status} /></td></tr>)}</tbody></table></div> : <EmptyState title="No team records for this date" description="The board will fill in as people check in. Non-workdays and public holidays are kept clear." icon={Activity} />}
       </Panel>
       {role === "HR" || reviewCorrections.length > 0 ? <Panel title={role === "ADMIN" ? "Corrections awaiting Admin review" : "Attendance corrections"} subtitle={role === "ADMIN" ? "Admin cover for an HR teammate’s own correction. Employee corrections stay with HR." : "Employee requests that need a review. Your own requests stay with an Admin."} className="correction-panel">
         <FormError>{error}</FormError>

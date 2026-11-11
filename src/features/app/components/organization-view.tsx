@@ -139,7 +139,7 @@ export function OrganizationView({ organization, role, refresh, notify }: {
       </Panel>
       <Panel title="Leave policies" subtitle="Quota settings are saved with each new request." className="span-two">
         {canManage && <form className="inline-policy-form" onSubmit={(event) => action(event, async () => { await apiRequest("/api/leave-types", { method: "POST", body: jsonBody(leaveType) }); setLeaveType({ code: "", name: "", yearlyQuota: 12, unlimited: false }); })}>
-          <label className="field-label">Code<input required pattern="[a-z][a-z0-9_-]{1,39}" placeholder="parental" value={leaveType.code} onChange={(event) => setLeaveType({ ...leaveType, code: event.target.value.toLowerCase() })} /></label>
+          <label className="field-label">Code<input required pattern="[a-z][a-z0-9_\-]{1,39}" placeholder="parental" value={leaveType.code} onChange={(event) => setLeaveType({ ...leaveType, code: event.target.value.toLowerCase() })} /></label>
           <label className="field-label">Leave type<input required minLength={2} placeholder="Parental leave" value={leaveType.name} onChange={(event) => setLeaveType({ ...leaveType, name: event.target.value })} /></label>
           <label className="field-label">Days per year<input type="number" min={1} max={366} disabled={leaveType.unlimited} value={leaveType.yearlyQuota} onChange={(event) => setLeaveType({ ...leaveType, yearlyQuota: Number(event.target.value) })} /></label>
           <label className="checkbox-label"><input type="checkbox" checked={leaveType.unlimited} onChange={(event) => setLeaveType({ ...leaveType, unlimited: event.target.checked })} /> Unlimited</label>

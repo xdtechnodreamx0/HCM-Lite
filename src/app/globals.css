@@ -1,7 +1,7 @@
 :root {
   --ink: #202a27;
-  --muted: #75807c;
-  --subtle: #9ba39f;
+  --muted: #5f6d68;
+  --subtle: #6f7d76;
   --line: #e8ece9;
   --paper: #f7f8f6;
   --surface: #ffffff;
@@ -115,7 +115,7 @@ a { color: inherit; }
 .user-meta { min-width: 0; flex: 1; }
 .user-meta strong, .user-meta small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .user-meta strong { color: #f1f7f2; font-size: 10px; font-weight: 650; }
-.user-meta small { margin-top: 4px; color: #9db2a6; font-size: 9px; }
+.user-meta small { margin-top: 4px; color: #9db2a6; font-size: 9px; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.35; }
 .logout-button { width: 30px !important; height: 30px !important; color: #a3b7ab !important; border: 0 !important; }
 .main-area { min-width: 0; width: calc(100% - 250px); margin-left: 250px; }
 .topbar { height: 65px; display: flex; align-items: center; justify-content: space-between; padding: 0 37px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.88); }
@@ -235,8 +235,8 @@ input[type="checkbox"] { accent-color: var(--green); }
 .metric-card { min-height: 122px; padding: 16px; border: 1px solid #e8ece9; border-radius: 13px; background: #fff; box-shadow: 0 2px 8px rgba(30,51,39,.018); }
 .metric-top { display: flex; align-items: center; justify-content: space-between; color: #77837c; font-size: 10px; font-weight: 560; }
 .metric-icon { width: 27px; height: 27px; display: flex; align-items: center; justify-content: center; border-radius: 9px; background: #eff5f0; color: #4e8a63; }
-.metric-card > strong { display: block; margin-top: 11px; color: #24322b; font-size: clamp(21px, 2vw, 28px); font-weight: 630; letter-spacing: -.05em; line-height: 1.05; }
-.metric-card > small { display: block; margin-top: 7px; color: #9aa39d; font-size: 9px; line-height: 1.35; }
+.metric-card > strong { display: block; margin-top: 11px; color: #24322b; font-size: clamp(21px, 2vw, 28px); font-weight: 630; letter-spacing: -.05em; line-height: 1.14; }
+.metric-card > small { display: -webkit-box; overflow: hidden; margin-top: 7px; color: #9aa39d; font-size: 9px; line-height: 1.35; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .dashboard-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 15px; align-items: stretch; }
 .dashboard-grid > .panel { min-height: 208px; }
 .attendance-glance { display: flex; gap: 35px; align-items: center; min-height: 126px; }
@@ -472,7 +472,7 @@ input[type="checkbox"] { accent-color: var(--green); }
 .payroll-summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
 .payroll-summary-grid > div { display: grid; gap: 6px; padding: 11px; border-radius: 9px; background: #f8faf8; }
 .payroll-summary-grid small { color: #929d96; font-size: 9px; }.payroll-summary-grid strong { color: #405346; font-size: 13px; font-weight: 670; }
-.payroll-footnote { display: flex; align-items: flex-start; gap: 8px; margin: 15px 0; padding: 10px; border: 1px solid #f0e4ca; border-radius: 8px; background: #fffaf0; color: #92733b; font-size: 9px; line-height: 1.5; }
+.payroll-footnote { display: flex; align-items: flex-start; gap: 8px; margin: 15px 0; padding: 10px; border: 1px solid #f0e4ca; border-radius: 8px; background: #fffaf0; color: #775a26; font-size: 9px; line-height: 1.5; }
 .payroll-footnote svg { flex: 0 0 auto; }
 .payroll-finalize-row { display: flex; justify-content: flex-end; padding-top: 13px; border-top: 1px solid #edf0ed; }
 .finalized-lock { display: inline-flex; align-items: center; gap: 7px; color: #528260; font-size: 10px; }
@@ -707,7 +707,7 @@ input[type="checkbox"] { accent-color: var(--green); }
 .auth-notice { margin-bottom: 2px; }
 .resend-verification { justify-self: center; }
 .sidebar-theme-row { display: flex; align-items: center; justify-content: space-between; margin: 0 1px 11px; color: #a5b9ae; font-size: 10px; }
-.theme-description { margin: -5px 2px 12px; color: #91a99c; font-size: 8px; line-height: 1.45; }
+.theme-description { margin: -5px 2px 12px; color: #b3c9bd; font-size: 9px; line-height: 1.5; }
 .sidebar-theme-row .theme-picker { border-color: rgba(230,242,233,.14); background: rgba(255,255,255,.05); color: #bdcec4; }
 .sidebar-theme-row .theme-picker select { color: #e2eee6; }
 .global-search-wrap { position: relative; width: min(240px, 23vw); }
@@ -735,8 +735,8 @@ input[type="checkbox"] { accent-color: var(--green); }
 @keyframes search-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 
 html[data-theme="peaceful"] {
-  --paper: #f2f7f2; --surface: #fbfdfb; --ink: #263c35; --muted: #71867c; --line: #dce9df;
-  --green: #4d8e73; --green-dark: #356d56; --green-light: #e2f0e5; --mint: #eef7ee; --nav: #23483e; color-scheme: light;
+  --paper: #f2f7f2; --surface: #fbfdfb; --ink: #263c35; --muted: #5c7064; --line: #dce9df;
+  --green: #3f7b61; --green-dark: #2f624b; --green-light: #e2f0e5; --mint: #eef7ee; --nav: #23483e; color-scheme: light;
 }
 html[data-theme="peaceful"] body { background-image: radial-gradient(ellipse at 92% 0%, rgba(157,204,174,.16), transparent 32%), radial-gradient(ellipse at 8% 95%, rgba(171,211,192,.12), transparent 35%); background-size: 115% 115%; animation: peaceful-drift 28s ease-in-out infinite alternate; }
 html[data-theme="peaceful"] .panel, html[data-theme="peaceful"] .metric-card { box-shadow: 0 6px 24px rgba(45,93,69,.045); }
@@ -761,6 +761,8 @@ html[data-theme="disco"] .panel-heading h2, html[data-theme="disco"] .page-headi
 html[data-theme="disco"] .field-label, html[data-theme="disco"] .topbar-profile, html[data-theme="disco"] .breadcrumbs strong { color: var(--ink); }
 html[data-theme="disco"] .field-label input, html[data-theme="disco"] .field-label select, html[data-theme="disco"] .field-label textarea, html[data-theme="disco"] .global-search, html[data-theme="disco"] .chat-composer { background: #191426; color: var(--ink); border-color: var(--line); }
 html[data-theme="disco"] .dashboard-news-list article { background: #2a203a; border-color: var(--line); }
+html[data-theme="disco"] .dashboard-news-list p { color: #cbbdda; }
+html[data-theme="disco"] .dashboard-news-list small { color: #b3a3c4; }
 html[data-theme="disco"] .nav-active, html[data-theme="disco"] .nav-active:hover { background: linear-gradient(100deg, #673b88, #344e84); box-shadow: inset 2px 0 0 #72e4e4; }
 html[data-theme="disco"] .metric-card { animation: disco-glow 6s ease-in-out infinite alternate; }
 html[data-theme="disco"] .button-primary { background: linear-gradient(100deg, #8243cb, #345bb6, #b63d9d); background-size: 180% 180%; animation: disco-gradient 7s ease infinite; }
@@ -1667,3 +1669,543 @@ html[data-theme="disco"] .public-auth-page { background: radial-gradient(760px 4
 @media (max-width: 360px) {
   .site-footer-columns, .site-footer-workspace .site-footer-columns { grid-template-columns: 1fr; }
 }
+
+/* ==========================================================================
+   Theme completeness
+   The original dark themes recolored a subset of surfaces. These rules close
+   the gaps for panels, tables, filters, forms, status pills and muted copy so
+   no light-theme color leaks into a dark workspace.
+   ========================================================================== */
+
+html[data-theme="night"] {
+  --panel-gradient: linear-gradient(155deg, #19231f 0%, #1d2923 100%);
+  --control-bg: #14201b;
+  --hover-bg: #223128;
+  --table-head: #9fb0a6;
+  --table-text: #bdcbc2;
+  --strong-ink: #edf5ef;
+  --soft-surface: #1d2a23;
+  --chip-green-bg: #1e3a2a; --chip-green-ink: #96d9a8;
+  --chip-amber-bg: #3b3020; --chip-amber-ink: #e8c07a;
+  --chip-rose-bg: #3a2524; --chip-rose-ink: #efa5a0;
+  --chip-blue-bg: #222f3c; --chip-blue-ink: #aec9ec;
+  --chip-neutral-bg: #26322b; --chip-neutral-ink: #c3d0c7;
+  --amber: #e2b86e; --rose: #e59a95; --blue: #a7c4e8;
+}
+html[data-theme="disco"] {
+  --panel-gradient: linear-gradient(155deg, #211a31 0%, #271e3a 100%);
+  --control-bg: #191426;
+  --hover-bg: #2b2040;
+  --table-head: #bfaed3;
+  --table-text: #d6c9e6;
+  --strong-ink: #fbf6ff;
+  --soft-surface: #2a203a;
+  --chip-green-bg: #34204a; --chip-green-ink: #e0a9ff;
+  --chip-amber-bg: #3a2c1f; --chip-amber-ink: #ecc07a;
+  --chip-rose-bg: #3a2130; --chip-rose-ink: #f0a2bf;
+  --chip-blue-bg: #202c40; --chip-blue-ink: #aac8f2;
+  --chip-neutral-bg: #2c2340; --chip-neutral-ink: #d7c8e8;
+  --amber-bg: #3a2c1f; --rose-bg: #3a2130; --blue-bg: #202c40;
+  --amber: #e5b86e; --rose: #e996b3; --blue: #9db8e8;
+}
+
+/* Surfaces */
+html[data-theme="night"] .panel,
+html[data-theme="disco"] .panel {
+  background: var(--panel-gradient);
+  border-color: var(--line);
+  color: var(--ink);
+}
+html[data-theme="night"] .metric-card,
+html[data-theme="night"] .balance-card,
+html[data-theme="night"] .payslip-card,
+html[data-theme="night"] .checkin-panel,
+html[data-theme="night"] .page-guide,
+html[data-theme="night"] .payroll-action-banner,
+html[data-theme="night"] .profile-modal,
+html[data-theme="night"] .form-modal,
+html[data-theme="night"] .topbar-user-popover,
+html[data-theme="disco"] .metric-card,
+html[data-theme="disco"] .balance-card,
+html[data-theme="disco"] .payslip-card,
+html[data-theme="disco"] .checkin-panel,
+html[data-theme="disco"] .page-guide,
+html[data-theme="disco"] .payroll-action-banner,
+html[data-theme="disco"] .profile-modal,
+html[data-theme="disco"] .form-modal,
+html[data-theme="disco"] .topbar-user-popover {
+  background: var(--panel-gradient);
+  border-color: var(--line);
+  color: var(--ink);
+}
+html[data-theme="night"] .dashboard-filter-bar,
+html[data-theme="disco"] .dashboard-filter-bar {
+  background: var(--soft-surface);
+  border-color: var(--line);
+}
+
+/* Controls and form fields */
+html[data-theme="night"] .date-filter,
+html[data-theme="night"] .attendance-filter-bar .filter-label,
+html[data-theme="night"] .dashboard-filter-bar .filter-label,
+html[data-theme="night"] .filter-label select,
+html[data-theme="night"] .role-select,
+html[data-theme="night"] .table-search,
+html[data-theme="night"] .global-search,
+html[data-theme="night"] .chat-composer,
+html[data-theme="night"] .correction-comment,
+html[data-theme="night"] .field-label input,
+html[data-theme="night"] .field-label select,
+html[data-theme="night"] .field-label textarea,
+html[data-theme="night"] .inline-create-form input,
+html[data-theme="night"] .inline-create-user input,
+html[data-theme="night"] .leave-decision-form input,
+html[data-theme="disco"] .date-filter,
+html[data-theme="disco"] .attendance-filter-bar .filter-label,
+html[data-theme="disco"] .dashboard-filter-bar .filter-label,
+html[data-theme="disco"] .filter-label select,
+html[data-theme="disco"] .role-select,
+html[data-theme="disco"] .table-search,
+html[data-theme="disco"] .global-search,
+html[data-theme="disco"] .chat-composer,
+html[data-theme="disco"] .correction-comment,
+html[data-theme="disco"] .field-label input,
+html[data-theme="disco"] .field-label select,
+html[data-theme="disco"] .field-label textarea,
+html[data-theme="disco"] .inline-create-form input,
+html[data-theme="disco"] .inline-create-user input,
+html[data-theme="disco"] .leave-decision-form input {
+  background-color: var(--control-bg);
+  border-color: var(--line);
+  color: var(--ink);
+}
+html[data-theme="night"] .date-filter input,
+html[data-theme="disco"] .date-filter input { background: transparent; color: var(--ink); }
+html[data-theme="night"] .field-label input:disabled,
+html[data-theme="night"] .field-label select:disabled,
+html[data-theme="disco"] .field-label input:disabled,
+html[data-theme="disco"] .field-label select:disabled { background: var(--soft-surface); }
+
+html[data-theme="night"] .button-secondary,
+html[data-theme="night"] .button-quiet,
+html[data-theme="night"] .icon-button,
+html[data-theme="night"] .live-date-chip,
+html[data-theme="night"] .role-view-chip,
+html[data-theme="night"] .toast-message,
+html[data-theme="night"] .global-search-results,
+html[data-theme="disco"] .button-secondary,
+html[data-theme="disco"] .button-quiet,
+html[data-theme="disco"] .icon-button,
+html[data-theme="disco"] .live-date-chip,
+html[data-theme="disco"] .role-view-chip,
+html[data-theme="disco"] .toast-message,
+html[data-theme="disco"] .global-search-results {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--ink);
+}
+html[data-theme="night"] .button-secondary:hover:not(:disabled),
+html[data-theme="night"] .button-quiet:hover:not(:disabled),
+html[data-theme="night"] .icon-button:hover,
+html[data-theme="disco"] .button-secondary:hover:not(:disabled),
+html[data-theme="disco"] .button-quiet:hover:not(:disabled),
+html[data-theme="disco"] .icon-button:hover { background: var(--hover-bg); border-color: var(--line); color: var(--strong-ink); }
+
+/* Tables */
+html[data-theme="night"] .data-table th,
+html[data-theme="disco"] .data-table th {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--table-head);
+}
+html[data-theme="night"] .data-table td,
+html[data-theme="disco"] .data-table td {
+  border-top-color: var(--line);
+  color: var(--table-text);
+}
+html[data-theme="night"] .data-table td strong,
+html[data-theme="night"] .data-table td .person-cell strong,
+html[data-theme="disco"] .data-table td strong,
+html[data-theme="disco"] .data-table td .person-cell strong { color: var(--strong-ink); }
+html[data-theme="night"] .data-table td small,
+html[data-theme="night"] .data-table .person-cell small,
+html[data-theme="disco"] .data-table td small,
+html[data-theme="disco"] .data-table .person-cell small { color: var(--muted); }
+html[data-theme="night"] .clickable-row:hover,
+html[data-theme="disco"] .clickable-row:hover { background: var(--hover-bg); }
+
+/* Headings and strong copy */
+html[data-theme="night"] .page-heading h1,
+html[data-theme="night"] .panel-heading h2,
+html[data-theme="night"] .metric-card > strong,
+html[data-theme="night"] .glance-main strong,
+html[data-theme="night"] .glance-stats strong,
+html[data-theme="night"] .breakdown-item strong,
+html[data-theme="night"] .health-metrics strong,
+html[data-theme="night"] .payslip-card h2,
+html[data-theme="night"] .announcement-head h3,
+html[data-theme="night"] .announcement-item strong,
+html[data-theme="night"] .leave-request-title strong,
+html[data-theme="night"] .profile-detail-grid strong,
+html[data-theme="night"] .correction-row strong,
+html[data-theme="night"] .temp-credential code,
+html[data-theme="night"] .week-hours strong,
+html[data-theme="night"] .latest-payslip strong,
+html[data-theme="night"] .balance-row strong,
+html[data-theme="night"] .latecomer-list strong,
+html[data-theme="night"] .chat-message p,
+html[data-theme="night"] .summary-placeholder p,
+html[data-theme="night"] .payroll-action-banner strong,
+html[data-theme="night"] .next-step-card strong,
+html[data-theme="night"] .attention-row strong,
+html[data-theme="night"] .activity-row strong,
+html[data-theme="night"] .empty-state h3,
+html[data-theme="night"] .date-display,
+html[data-theme="night"] .field-label,
+html[data-theme="night"] .role-select,
+html[data-theme="night"] .filter-label,
+html[data-theme="night"] .dashboard-filter-label,
+html[data-theme="night"] .topbar-profile,
+html[data-theme="night"] .breadcrumbs strong,
+html[data-theme="disco"] .page-heading h1,
+html[data-theme="disco"] .panel-heading h2,
+html[data-theme="disco"] .metric-card > strong,
+html[data-theme="disco"] .glance-main strong,
+html[data-theme="disco"] .glance-stats strong,
+html[data-theme="disco"] .breakdown-item strong,
+html[data-theme="disco"] .health-metrics strong,
+html[data-theme="disco"] .payslip-card h2,
+html[data-theme="disco"] .announcement-head h3,
+html[data-theme="disco"] .announcement-item strong,
+html[data-theme="disco"] .leave-request-title strong,
+html[data-theme="disco"] .profile-detail-grid strong,
+html[data-theme="disco"] .correction-row strong,
+html[data-theme="disco"] .temp-credential code,
+html[data-theme="disco"] .week-hours strong,
+html[data-theme="disco"] .latest-payslip strong,
+html[data-theme="disco"] .balance-row strong,
+html[data-theme="disco"] .latecomer-list strong,
+html[data-theme="disco"] .chat-message p,
+html[data-theme="disco"] .summary-placeholder p,
+html[data-theme="disco"] .payroll-action-banner strong,
+html[data-theme="disco"] .next-step-card strong,
+html[data-theme="disco"] .attention-row strong,
+html[data-theme="disco"] .activity-row strong,
+html[data-theme="disco"] .empty-state h3,
+html[data-theme="disco"] .date-display,
+html[data-theme="disco"] .field-label,
+html[data-theme="disco"] .role-select,
+html[data-theme="disco"] .filter-label,
+html[data-theme="disco"] .dashboard-filter-label,
+html[data-theme="disco"] .topbar-profile,
+html[data-theme="disco"] .breadcrumbs strong { color: var(--strong-ink); }
+
+/* Muted copy */
+html[data-theme="night"] .page-heading p,
+html[data-theme="night"] .panel-heading p,
+html[data-theme="night"] .metric-card > small,
+html[data-theme="night"] .metric-top,
+html[data-theme="night"] .glance-main div span,
+html[data-theme="night"] .glance-stats > div,
+html[data-theme="night"] .attention-row small,
+html[data-theme="night"] .activity-row small,
+html[data-theme="night"] .activity-row time,
+html[data-theme="night"] .breakdown-item > div,
+html[data-theme="night"] .health-metrics small,
+html[data-theme="night"] .payslip-amount small,
+html[data-theme="night"] .payslip-breakdown span,
+html[data-theme="night"] .announcement-head time,
+html[data-theme="night"] .announcement-card p,
+html[data-theme="night"] .announcement-card small,
+html[data-theme="night"] .announcement-item p,
+html[data-theme="night"] .leave-request-main p,
+html[data-theme="night"] .leave-request-main > small,
+html[data-theme="night"] .profile-detail-grid small,
+html[data-theme="night"] .correction-row small,
+html[data-theme="night"] .next-step-card p,
+html[data-theme="night"] .chart-key,
+html[data-theme="night"] .week-target,
+html[data-theme="night"] .week-note,
+html[data-theme="night"] .toolbar-caption,
+html[data-theme="night"] .filter-joiner,
+html[data-theme="night"] .form-hint,
+html[data-theme="night"] .field-hint,
+html[data-theme="night"] .optional-label,
+html[data-theme="night"] .chat-message small,
+html[data-theme="night"] .payroll-summary-grid small,
+html[data-theme="night"] .empty-state p,
+html[data-theme="night"] .mini-chart-value,
+html[data-theme="night"] .mini-chart-column small,
+html[data-theme="night"] .balance-row,
+html[data-theme="night"] .latest-payslip small,
+html[data-theme="night"] .latecomer-list small,
+html[data-theme="night"] .attendance-toolbar,
+html[data-theme="night"] .summary-scope,
+html[data-theme="disco"] .page-heading p,
+html[data-theme="disco"] .panel-heading p,
+html[data-theme="disco"] .metric-card > small,
+html[data-theme="disco"] .metric-top,
+html[data-theme="disco"] .glance-main div span,
+html[data-theme="disco"] .glance-stats > div,
+html[data-theme="disco"] .attention-row small,
+html[data-theme="disco"] .activity-row small,
+html[data-theme="disco"] .activity-row time,
+html[data-theme="disco"] .breakdown-item > div,
+html[data-theme="disco"] .health-metrics small,
+html[data-theme="disco"] .payslip-amount small,
+html[data-theme="disco"] .payslip-breakdown span,
+html[data-theme="disco"] .announcement-head time,
+html[data-theme="disco"] .announcement-card p,
+html[data-theme="disco"] .announcement-card small,
+html[data-theme="disco"] .announcement-item p,
+html[data-theme="disco"] .leave-request-main p,
+html[data-theme="disco"] .leave-request-main > small,
+html[data-theme="disco"] .profile-detail-grid small,
+html[data-theme="disco"] .correction-row small,
+html[data-theme="disco"] .next-step-card p,
+html[data-theme="disco"] .chart-key,
+html[data-theme="disco"] .week-target,
+html[data-theme="disco"] .week-note,
+html[data-theme="disco"] .toolbar-caption,
+html[data-theme="disco"] .filter-joiner,
+html[data-theme="disco"] .form-hint,
+html[data-theme="disco"] .field-hint,
+html[data-theme="disco"] .optional-label,
+html[data-theme="disco"] .chat-message small,
+html[data-theme="disco"] .payroll-summary-grid small,
+html[data-theme="disco"] .empty-state p,
+html[data-theme="disco"] .mini-chart-value,
+html[data-theme="disco"] .mini-chart-column small,
+html[data-theme="disco"] .balance-row,
+html[data-theme="disco"] .latest-payslip small,
+html[data-theme="disco"] .latecomer-list small,
+html[data-theme="disco"] .attendance-toolbar,
+html[data-theme="disco"] .summary-scope { color: var(--muted); }
+
+/* Accent values and inline surfaces */
+html[data-theme="night"] .payslip-amount strong,
+html[data-theme="night"] .latest-payslip b,
+html[data-theme="disco"] .payslip-amount strong,
+html[data-theme="disco"] .latest-payslip b { color: var(--green-dark); }
+html[data-theme="night"] .payroll-summary-grid strong,
+html[data-theme="disco"] .payroll-summary-grid strong { color: var(--strong-ink); }
+html[data-theme="night"] .theme-description,
+html[data-theme="disco"] .theme-description { color: var(--muted); }
+html[data-theme="night"] .payroll-summary-grid > div,
+html[data-theme="night"] .health-metrics > div,
+html[data-theme="night"] .csv-column-help,
+html[data-theme="night"] .summary-placeholder,
+html[data-theme="night"] .chat-message,
+html[data-theme="night"] .smart-leave-review,
+html[data-theme="night"] .temp-credential,
+html[data-theme="night"] .breakdown-track,
+html[data-theme="night"] .mini-chart-track,
+html[data-theme="night"] .progress-track,
+html[data-theme="night"] .empty-icon,
+html[data-theme="disco"] .payroll-summary-grid > div,
+html[data-theme="disco"] .health-metrics > div,
+html[data-theme="disco"] .csv-column-help,
+html[data-theme="disco"] .summary-placeholder,
+html[data-theme="disco"] .chat-message,
+html[data-theme="disco"] .smart-leave-review,
+html[data-theme="disco"] .temp-credential,
+html[data-theme="disco"] .breakdown-track,
+html[data-theme="disco"] .mini-chart-track,
+html[data-theme="disco"] .progress-track,
+html[data-theme="disco"] .empty-icon {
+  background: var(--control-bg);
+  border-color: var(--line);
+}
+html[data-theme="night"] .chat-user .chat-message,
+html[data-theme="disco"] .chat-user .chat-message { background: var(--green-light); }
+html[data-theme="night"] .glance-ring,
+html[data-theme="disco"] .glance-ring {
+  border-color: var(--green-light);
+  background: var(--surface);
+  color: var(--green-dark);
+}
+html[data-theme="night"] .metric-icon,
+html[data-theme="night"] .next-step-icon,
+html[data-theme="night"] .soft-icon,
+html[data-theme="night"] .payslip-icon,
+html[data-theme="night"] .announcement-mark,
+html[data-theme="night"] .leave-request-icon,
+html[data-theme="night"] .summary-icon,
+html[data-theme="night"] .banner-icon,
+html[data-theme="night"] .empty-icon,
+html[data-theme="disco"] .metric-icon,
+html[data-theme="disco"] .next-step-icon,
+html[data-theme="disco"] .soft-icon,
+html[data-theme="disco"] .payslip-icon,
+html[data-theme="disco"] .announcement-mark,
+html[data-theme="disco"] .leave-request-icon,
+html[data-theme="disco"] .summary-icon,
+html[data-theme="disco"] .banner-icon { background: var(--green-light); color: var(--green-dark); }
+html[data-theme="night"] .metric-grid .metric-card:nth-child(5) .metric-icon,
+html[data-theme="disco"] .metric-grid .metric-card:nth-child(5) .metric-icon { background: var(--chip-neutral-bg); color: var(--chip-neutral-ink); }
+
+/* Borders */
+html[data-theme="night"] .activity-row,
+html[data-theme="night"] .attention-row,
+html[data-theme="night"] .announcement-card,
+html[data-theme="night"] .payslip-card-rule,
+html[data-theme="night"] .leave-request-card,
+html[data-theme="night"] .correction-row,
+html[data-theme="night"] .latecomer-list li,
+html[data-theme="night"] .balance-row,
+html[data-theme="night"] .profile-hero,
+html[data-theme="disco"] .activity-row,
+html[data-theme="disco"] .attention-row,
+html[data-theme="disco"] .announcement-card,
+html[data-theme="disco"] .payslip-card-rule,
+html[data-theme="disco"] .leave-request-card,
+html[data-theme="disco"] .correction-row,
+html[data-theme="disco"] .latecomer-list li,
+html[data-theme="disco"] .balance-row,
+html[data-theme="disco"] .profile-hero { border-color: var(--line); }
+html[data-theme="night"] .payslip-card-rule,
+html[data-theme="disco"] .payslip-card-rule { background: var(--line); }
+
+/* Status pills */
+html[data-theme="night"] .status-pill,
+html[data-theme="disco"] .status-pill { background: var(--chip-neutral-bg); color: var(--chip-neutral-ink); }
+html[data-theme="night"] .status-approved,
+html[data-theme="night"] .status-active,
+html[data-theme="night"] .status-finalized,
+html[data-theme="night"] .status-present,
+html[data-theme="night"] .status-read,
+html[data-theme="disco"] .status-approved,
+html[data-theme="disco"] .status-active,
+html[data-theme="disco"] .status-finalized,
+html[data-theme="disco"] .status-present,
+html[data-theme="disco"] .status-read { background: var(--chip-green-bg); color: var(--chip-green-ink); }
+html[data-theme="night"] .status-pending,
+html[data-theme="night"] .status-late,
+html[data-theme="night"] .status-probation,
+html[data-theme="night"] .status-unread,
+html[data-theme="disco"] .status-pending,
+html[data-theme="disco"] .status-late,
+html[data-theme="disco"] .status-probation,
+html[data-theme="disco"] .status-unread { background: var(--chip-amber-bg); color: var(--chip-amber-ink); }
+html[data-theme="night"] .status-rejected,
+html[data-theme="night"] .status-cancelled,
+html[data-theme="night"] .status-inactive,
+html[data-theme="night"] .status-absent,
+html[data-theme="disco"] .status-rejected,
+html[data-theme="disco"] .status-cancelled,
+html[data-theme="disco"] .status-inactive,
+html[data-theme="disco"] .status-absent { background: var(--chip-rose-bg); color: var(--chip-rose-ink); }
+html[data-theme="night"] .status-half_day,
+html[data-theme="night"] .status-missing_checkout,
+html[data-theme="disco"] .status-half_day,
+html[data-theme="disco"] .status-missing_checkout { background: var(--chip-blue-bg); color: var(--chip-blue-ink); }
+html[data-theme="night"] .status-pill .status-dot,
+html[data-theme="disco"] .status-pill .status-dot { background: currentColor; }
+
+/* Alerts */
+html[data-theme="night"] .error-alert,
+html[data-theme="disco"] .error-alert { background: var(--chip-rose-bg); border-color: #5c3a38; color: var(--chip-rose-ink); }
+html[data-theme="night"] .success-alert,
+html[data-theme="disco"] .success-alert { background: var(--chip-green-bg); border-color: #355a44; color: var(--chip-green-ink); }
+html[data-theme="night"] .warning-alert,
+html[data-theme="disco"] .warning-alert { background: var(--chip-amber-bg); border-color: #5a462a; color: var(--chip-amber-ink); }
+
+/* Sidebar tint for Disco */
+html[data-theme="disco"] .nav-item { color: #d7c8e9; }
+html[data-theme="disco"] .nav-item:hover { color: #fff; }
+html[data-theme="disco"] .side-section-label { color: #b9a4d4; }
+html[data-theme="disco"] .workspace-name small { color: #c9b7df; }
+html[data-theme="disco"] .help-card p { color: #c9b7df; }
+html[data-theme="disco"] .help-card button { color: #e2a4ff; }
+
+/* Guest surfaces in dark themes */
+html[data-theme="night"] .guest-demo-link { color: #8fce9f; border-color: var(--line); background: var(--surface); }
+html[data-theme="night"] .guest-demo-link:hover { color: #b7e6c4; background: #223128; border-color: #3a5544; }
+html[data-theme="night"] .guest-ai-cta { background: #2f7a58; color: #fff; }
+html[data-theme="disco"] .guest-demo-link { color: #d9a6ff; border-color: var(--line); background: var(--surface); }
+html[data-theme="disco"] .guest-demo-link:hover { color: #ecc7ff; background: #2b2040; border-color: #4a3563; }
+html[data-theme="disco"] .guest-ai-cta { background: #7436ab; color: #fff; }
+
+/* Shared select styling for access controls */
+.role-select {
+  min-height: 33px;
+  padding: 0 30px 0 10px;
+  border: 1px solid #dfe6e1;
+  border-radius: 8px;
+  appearance: none;
+  background-color: #fff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364746b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  color: #45564b;
+  font-size: 10.5px;
+  font-weight: 620;
+  cursor: pointer;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.role-select:hover:not(:disabled) { border-color: #bfd3c5; }
+.role-select:focus-visible { border-color: #6fae87; box-shadow: 0 0 0 4px var(--ring); outline: none; }
+.role-select:disabled { opacity: .66; cursor: default; }
+.profile-link-select { max-width: 190px; }
+html[data-theme="night"] .role-select,
+html[data-theme="disco"] .role-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23b9c9bf' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+html[data-theme="disco"] .role-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23d7c8e8' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+/* Mobile refinements */
+@media (max-width: 680px) {
+  .sidebar-brand .sidebar-close {
+    display: inline-flex;
+    background: rgba(255,255,255,.14);
+    border-color: rgba(255,255,255,.24);
+    color: #f4fbf6;
+  }
+  .sidebar-brand .sidebar-close svg { display: block; stroke: currentColor; }
+  .metric-grid-five .metric-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .role-select { min-height: 36px; }
+  .site-footer-column a, .site-footer-bottom a, .auth-footnote a { display: inline-block; padding: 4px 0; }
+}
+
+/* Contrast polish for small secondary copy */
+.eyebrow-light { color: #a5c4ad; }
+.auth-footer { color: var(--muted); }
+.metric-card > small,
+.metric-top,
+.panel-heading p,
+.person-cell small,
+.empty-state p,
+.mini-chart-column small,
+.chart-key,
+.toolbar-caption,
+.balance-row,
+.latest-payslip small,
+.activity-row small,
+.activity-row time,
+.attention-row small,
+.next-step-card p,
+.payslip-breakdown span,
+.leave-request-main p,
+.leave-request-main > small,
+.announcement-card small,
+.announcement-card p,
+.profile-detail-grid small,
+.correction-row small,
+.breakdown-item > div,
+.health-metrics small,
+.payslip-amount small,
+.glance-main div span,
+.glance-stats > div,
+.latecomer-list small,
+.summary-placeholder p,
+.chat-message small,
+.form-hint,
+.field-hint,
+.optional-label { color: var(--muted); }
+.data-table th { color: #66736b; }
+html[data-theme="night"] .auth-footer,
+html[data-theme="night"] .workspace-footer,
+html[data-theme="disco"] .auth-footer,
+html[data-theme="disco"] .workspace-footer { color: var(--muted); }

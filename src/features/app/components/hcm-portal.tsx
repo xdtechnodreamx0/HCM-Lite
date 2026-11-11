@@ -145,7 +145,7 @@ export function HcmPortal() {
     try {
       const current = await apiRequest<SessionPayload>("/api/session");
       setSession(current);
-      if (current.user) await loadData(current.user.role);
+      if (current.user && !current.user.forcePasswordChange) await loadData(current.user.role);
     } catch (reason) {
       setLoadError(apiMessage(reason));
       setSession(null);
@@ -210,6 +210,11 @@ export function HcmPortal() {
   const currentUser = session?.user ?? null;
   const nav = useMemo(() => currentUser ? navigation[currentUser.role] ?? [] : [], [currentUser]);
   const currentLabel = nav.find((item) => item.id === activeView)?.label ?? "Overview";
+
+  useEffect(() => {
+    if (!currentUser) return;
+    document.title = `${currentLabel} | ${session?.company?.name ?? "People.works"}`;
+  }, [currentLabel, currentUser, session?.company?.name]);
 
   async function logOut() {
     try { await apiRequest("/api/auth/logout", { method: "POST" }); } catch { /* The local view still clears. */ }

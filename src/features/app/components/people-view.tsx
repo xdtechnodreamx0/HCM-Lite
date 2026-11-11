@@ -58,7 +58,8 @@ export function PeopleView({ employees, organization, role, refresh, notify, sea
 
   async function createEmployee(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true); setError(""); setSuccess(""); setTemporaryPassword("");
-    const values = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const values = new FormData(form);
     try {
       const result = await apiRequest<{ temporaryPassword: string | null; accountLinked?: boolean }>("/api/employees", {
         method: "POST",
@@ -71,7 +72,7 @@ export function PeopleView({ employees, organization, role, refresh, notify, sea
       });
       setTemporaryPassword(result.temporaryPassword ?? "");
       setSuccess(result.accountLinked ? "Employee profile linked to the existing sign-up. They can use the password they created." : "Employee and login created. Share this temporary password securely; it is shown only now.");
-      event.currentTarget.reset();
+      form.reset();
       setPage(1); setQuery(""); setQueryInput("");
       await refresh();
       notify("Employee added to the directory.");

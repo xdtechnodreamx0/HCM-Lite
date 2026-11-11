@@ -60,7 +60,7 @@ export function FormSuccess({ children }: { children?: ReactNode }) {
 export function MetricCard({ label, value, note, icon: Icon, tone = "" }: {
   label: string; value: string | number; note: string; icon?: LucideIcon; tone?: string;
 }) {
-  return <article className={`metric-card ${tone}`}><div className="metric-top"><span>{label}</span>{Icon && <span className="metric-icon"><Icon size={17} /></span>}</div><strong>{value}</strong><small>{note}</small></article>;
+  return <article className={`metric-card ${tone}`}><div className="metric-top"><span>{label}</span>{Icon && <span className="metric-icon"><Icon size={17} /></span>}</div><strong>{value}</strong><small title={note}>{note}</small></article>;
 }
 
 export function TableEmpty({ columns, title = "Nothing to show yet", message = "New records will appear here when your team starts using this workspace." }: {
