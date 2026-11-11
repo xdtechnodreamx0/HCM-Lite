@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity, Bell, Building2, CalendarDays, ChevronDown, CircleHelp,
-  FileClock, LayoutDashboard, LogOut, Menu, Megaphone, MessageCircle, Search, Sparkles,
+  FileClock, KeyRound, LayoutDashboard, LogOut, Menu, Megaphone, MessageCircle, Search, Sparkles,
   ShieldCheck, Users, WalletCards, X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -15,7 +15,9 @@ import type {
 } from "@/lib/domain-types";
 import { apiMessage } from "@/lib/errors";
 import { AuthGate, PasswordChangeGate } from "@/features/app/components/auth-gate";
+import { ChangePasswordDialog } from "@/features/app/components/password-dialog";
 import { PortalView } from "@/features/app/components/portal-views";
+import { SiteFooter } from "@/features/app/components/site-footer";
 import { ThemeDescription, ThemePicker } from "@/features/app/components/theme-provider";
 
 type ViewId = "overview" | "organization" | "users" | "employees" | "attendance" | "leave" | "payroll" | "announcements" | "audit" | "assistant" | "profile";
@@ -90,6 +92,8 @@ export function HcmPortal() {
   const [quickSearchBusy, setQuickSearchBusy] = useState(false);
   const [peopleSearchSeed, setPeopleSearchSeed] = useState<{ query: string; key: number } | null>(null);
   const [dashboardFilters, setDashboardFilters] = useState<DashboardFilters>({ start: "", end: "", departmentId: "" });
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const loadData = useCallback(async (role: string) => {
     setRefreshing(true);
@@ -168,10 +172,25 @@ export function HcmPortal() {
   }, [session?.user]);
 
   useEffect(() => {
+    // /login is a real sign-in URL. Once the session is open, keep the user in
+    // the canonical workspace URL instead of leaving them on the auth route.
+    if (session?.user && window.location.pathname === "/login") {
+      window.history.replaceState(null, "", "/");
+    }
+  }, [session?.user]);
+
+  useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(""), 3600);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const close = () => setUserMenuOpen(false);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [userMenuOpen]);
 
   useEffect(() => {
     const query = globalSearch.trim();
@@ -209,7 +228,7 @@ export function HcmPortal() {
     return <main className="connection-screen"><span className="icon-well"><CircleHelp size={24} /></span><h1>We couldn’t reach your workspace.</h1><p>{loadError}</p><p className="muted">Check MongoDB and the required environment variables, then retry.</p><button className="button button-primary" onClick={() => { setLoading(true); void refreshSession(); }}>Try again</button></main>;
   }
   if (!session?.initialized || !currentUser) {
-    return <AuthGate initialized={session?.initialized ?? false} onReady={completeAuth} />;
+    return <AuthGate initialized={session?.initialized ?? false} onReady={completeAuth} onRefreshSession={refreshSession} />;
   }
   if (currentUser.forcePasswordChange) {
     return <PasswordChangeGate name={currentUser.name} onDone={completeAuth} onLogout={() => { void logOut(); }} />;
@@ -246,6 +265,7 @@ export function HcmPortal() {
           <div className="side-user">
             <span className="user-avatar">{initials(currentUser.name)}</span>
             <span className="user-meta"><strong>{currentUser.name}</strong><small>{currentUser.email}</small></span>
+            <button className="icon-button logout-button" title="Change password" aria-label="Change password" onClick={() => setPasswordOpen(true)}><KeyRound size={15} /></button>
             <button className="icon-button logout-button" title="Sign out" aria-label="Sign out" onClick={() => { void logOut(); }}><LogOut size={16} /></button>
           </div>
         </div>
@@ -261,9 +281,15 @@ export function HcmPortal() {
             <button className="icon-button notification-button" aria-label="Open announcements" onClick={() => setActiveView("announcements")}>
               <Bell size={18} />{data.notifications.some((item) => !item.read) && <span className="notification-ping" />}
             </button>
-            <button className="topbar-profile" onClick={() => currentUser.role === "EMPLOYEE" ? setActiveView("profile") : setActiveView("organization")}>
+            <button className="topbar-profile" aria-haspopup="menu" aria-expanded={userMenuOpen} onClick={(event) => { event.stopPropagation(); setUserMenuOpen((open) => !open); }}>
               <span className="user-avatar avatar-small">{initials(currentUser.name)}</span><span>{currentUser.name.split(" ")[0]}</span><ChevronDown size={14} />
             </button>
+            {userMenuOpen && <div className="topbar-user-popover" role="menu" onClick={(event) => event.stopPropagation()}>
+              <div className="user-popover-head"><span className="user-avatar">{initials(currentUser.name)}</span><span><strong>{currentUser.name}</strong><small>{currentUser.email} · {roleName(currentUser.role)}</small></span></div>
+              {currentUser.role === "EMPLOYEE" && <button role="menuitem" onClick={() => { setActiveView("profile"); setUserMenuOpen(false); }}><Users size={15} /> My profile</button>}
+              <button role="menuitem" onClick={() => { setPasswordOpen(true); setUserMenuOpen(false); }}><KeyRound size={15} /> Change password</button>
+              <button role="menuitem" onClick={() => { setUserMenuOpen(false); void logOut(); }}><LogOut size={15} /> Sign out</button>
+            </div>}
           </div>
         </header>
         <section className="content-area">
@@ -282,9 +308,10 @@ export function HcmPortal() {
             notify={setToast}
             goTo={setActiveView}
           />
-          <footer className="workspace-footer"><span>People.works <i>·</i> {session.company?.name ?? "Private workspace"}</span><span><ShieldCheck size={13} /> Company-scoped access <i>·</i> Local workspace</span></footer>
+          <SiteFooter variant="workspace" companyName={session.company?.name} />
         </section>
         <button className="floating-assistant" type="button" aria-label="Ask People.works AI for help about this page" onClick={() => { if (activeView !== "assistant") setAssistantContext(activeView); setActiveView("assistant"); window.scrollTo({ top: 0, behavior: "smooth" }); }}><Sparkles size={16} /><span>Ask AI</span></button>
+        <ChangePasswordDialog open={passwordOpen} onClose={() => setPasswordOpen(false)} notify={setToast} />
         {toast && <div className="toast-message" role="status"><span className="toast-check">✓</span>{toast}<button aria-label="Dismiss notification" onClick={() => setToast("")}><X size={14} /></button></div>}
       </main>
     </div>
@@ -299,7 +326,7 @@ function QuickGuide({ view, role, onAsk }: { view: ViewId; role: string; onAsk: 
     employees: { title: "People directory", detail: "Search by name, email, or employee code. Open a profile to review the details permitted for your role." },
     attendance: { title: "Attendance", detail: role === "EMPLOYEE" ? "Check in when your workday starts and check out when it ends. Use a correction request if a punch needs review." : "Filter the attendance board by date or department, then review pending correction requests." },
     leave: { title: "Leave requests", detail: role === "EMPLOYEE" ? "Choose a leave type, select work dates, and add a short reason. Your request stays pending until HR reviews it." : "Review pending requests, check the dates and reason, then add a short decision note." },
-    payroll: { title: "Payroll", detail: role === "HR" ? "Prepare a draft for the period, inspect deductions, and finalize only after review." : role === "ADMIN" ? "Review payroll status and audit history. HR prepares the payroll draft and finalizes it after review." : "Open a finalized payslip to review your own pay details." },
+    payroll: { title: "Payroll", detail: role === "HR" ? "Prepare a draft for the period, inspect deductions, and ask an Admin to finalize after review." : role === "ADMIN" ? "Create or review a payroll draft, inspect the math, then finalize and lock it when ready." : "Open a finalized payslip to review your own pay details." },
     announcements: { title: "Team updates", detail: role === "EMPLOYEE" ? "Read company updates and follow links for the actions your team shared." : "Publish a clear title and short message; updates appear in the employee workspace and notifications." },
     audit: { title: "Audit trail", detail: "Use this read-only history to review who changed a company record and when." },
     assistant: { title: "Role-aware help", detail: "Ask about this page or your workspace. The assistant uses only data your account can access; it does not capture your computer screen." },

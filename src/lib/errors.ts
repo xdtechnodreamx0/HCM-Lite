@@ -17,3 +17,11 @@ export function isAppError(error: unknown): error is AppError {
 export function apiMessage(error: unknown) {
   return error instanceof Error ? error.message : "Something went wrong. Please try again.";
 }
+
+export function errorStatus(error: unknown) {
+  if (error && typeof error === "object" && "status" in error) {
+    const status = Number((error as { status?: unknown }).status);
+    return Number.isFinite(status) ? status : 0;
+  }
+  return 0;
+}

@@ -38,19 +38,20 @@ export async function requestEmployeeSignup(raw: unknown, ip: string) {
   const db = await collections();
   const company = await db.companies.findOne({ setupKey: "primary" });
   if (!company) throw new AppError(409, "The company workspace is not ready for employee sign-up yet.");
-  if (await db.users.findOne({ email: input.email }, { projection: { _id: 1 } })) return { accepted: true };
+  if (await db.users.findOne({ email: input.email }, { projection: { _id: 1 } })) return { accepted: true, emailConfigured: Boolean(getEmailProvider()) };
   const user = {
     id: createId("usr"), companyId: String(company.id), email: input.email, name: input.name,
     role: "EMPLOYEE" as const, passwordHash: await hashPassword(input.password), active: false,
     signupPending: true, forcePasswordChange: false, sessionVersion: 1, createdAt: new Date(),
   };
   await db.users.insertOne(user);
+  const emailConfigured = Boolean(getEmailProvider());
   try {
-    if (getEmailProvider()) {
+    if (emailConfigured) {
       await issueEmailVerification({ id: user.id, companyId: user.companyId, email: user.email, name: user.name, company: String(company.name) });
     }
     await writeAudit({ companyId: user.companyId, action: "user.signup.request", entity: "user", entityId: user.id, after: { email: user.email, status: "pending_admin_link" } });
-    return { accepted: true };
+    return { accepted: true, emailConfigured };
   } catch (error) {
     await db.users.deleteOne({ id: user.id, companyId: user.companyId });
     throw error;

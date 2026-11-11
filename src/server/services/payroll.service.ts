@@ -54,7 +54,9 @@ function employedWorkdays(start: string, end: string, joiningDate: string, exitD
 }
 
 export async function createPayrollDraft(actor: SessionUser, periodInput: string) {
-  requireRole(actor, ["HR"]);
+  // Admin can prepare a draft as well as finalize it, so the person with the
+  // final approval never has to ask HR just to get a payroll run started.
+  requireRole(actor, ["ADMIN", "HR"]);
   const period = periodSchema.parse(periodInput);
   const { start, end } = monthRange(Number(period.slice(0, 4)), Number(period.slice(5, 7)));
   const calendar = await getCalendar(actor.companyId);

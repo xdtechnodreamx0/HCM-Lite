@@ -13,7 +13,7 @@ In Vercel, open the `hcm_lite` project’s **Settings → Environment Variables*
 | `APP_BASE_URL` | Public HTTPS origin used for links in verification/reset emails, with no trailing path. Same-origin API checks also accept the request's actual forwarded host, so a stale value no longer blocks setup or sign-in. |
 | `MONGODB_DB` | Optional; defaults to `hcm_lite`. Use a dedicated database name. |
 | `GEMINI_API_KEY` | Optional; required for AI answers. Keep it server-side. |
-| `GEMINI_MODEL` | Optional; defaults to `gemini-3.8-flash`. |
+| `GEMINI_MODEL` | Optional; defaults to the `gemini-2.5-flash` free tier, with `gemini-2.0-flash` and `gemini-1.5-flash` fallbacks if that model is unavailable for the key. |
 | `RESEND_API_KEY` | Optional; required for real verification and reset emails. |
 | `EMAIL_FROM` | Optional with Resend; a sender on a domain verified with Resend. Configure it together with `RESEND_API_KEY`. |
 

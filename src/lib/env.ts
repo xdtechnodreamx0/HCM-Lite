@@ -19,13 +19,26 @@ export function getEnv() {
     mongodbUri,
     mongodbDb,
     sessionSecret,
-    appBaseUrl: process.env.APP_BASE_URL?.trim() || "http://localhost:3000",
+    appBaseUrl: resolveAppBaseUrl(),
     nodeEnv: process.env.NODE_ENV || "development",
     geminiApiKey: process.env.GEMINI_API_KEY?.trim() || process.env.AI_API_KEY?.trim() || "",
-    geminiModel: process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash",
+    geminiModel: process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash",
     resendApiKey: process.env.RESEND_API_KEY?.trim() || "",
     emailFrom: process.env.EMAIL_FROM?.trim() || "",
   };
+}
+
+/**
+ * Email links must never point at localhost from a hosted deployment. Vercel
+ * exposes the stable production URL; prefer it when APP_BASE_URL is missing or
+ * still holds a local development address.
+ */
+function resolveAppBaseUrl() {
+  const configured = process.env.APP_BASE_URL?.trim();
+  const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() || process.env.VERCEL_URL?.trim();
+  const configuredIsLocal = !configured || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(configured);
+  if (vercelHost && configuredIsLocal) return `https://${vercelHost.replace(/^https?:\/\//, "")}`;
+  return configured || "http://localhost:3000";
 }
 
 export function getEmailProvider() {

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowUpRight, CalendarDays, CheckCircle2, Clock3, Sparkles, Users, WalletCards } from "lucide-react";
+import { ArrowUpRight, CalendarDays, CheckCircle2, Clock3, Sparkles, Users, WalletCards } from "lucide-react";
+import { SiteFooter } from "@/features/app/components/site-footer";
 
 const departments = [
   { name: "Product & Engineering", count: 5, width: "100%" },
@@ -38,6 +39,6 @@ export default function GuestDemoPage() {
     <section className="guest-roles"><div><span className="eyebrow">TRY A ROLE</span><h2>See how each workspace feels.</h2><p>These local demo accounts share one simple password. Use them only in the demo environment.</p></div><div className="guest-role-cards">
       {[{ title: "Admin", username: "admin@northstar.demo", note: "Full company settings and user access" }, { title: "HR", username: "hr@northstar.demo", note: "People operations and approvals" }, { title: "Employee", username: "employee@northstar.demo", note: "Personal attendance, leave, and payslips" }].map((role) => <article key={role.title}><span className="guest-role-mark">{role.title.slice(0, 1)}</span><strong>{role.title}</strong><small>{role.note}</small><code>{role.username}</code><span className="guest-role-password">Password <b>12345</b></span><Link href={`/?email=${encodeURIComponent(role.username)}`}>Open sign in <ArrowUpRight size={13} /></Link></article>)}
     </div></section>
-    <footer className="guest-demo-footer"><span>All names, figures, and updates on this page are fictional sample data.</span><Link href="/">Return to People.works <ArrowLeft size={13} /></Link></footer>
+    <SiteFooter variant="public" note="All names, figures, and updates on this page are fictional sample data." />
   </main>;
 }

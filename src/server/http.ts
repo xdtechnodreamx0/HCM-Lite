@@ -12,7 +12,16 @@ export function requireApiUser(user: SessionUser | null): SessionUser {
 }
 
 export function json(data: unknown, status = 200) {
-  return NextResponse.json(data, { status, headers: secureHeaders() });
+  return NextResponse.json(data, {
+    status,
+    headers: {
+      ...secureHeaders(),
+      // Session, setup state, and account data are request-specific. Never let
+      // a browser or CDN cache them or serve one user's response to another.
+      "Cache-Control": "no-store, max-age=0",
+      Pragma: "no-cache",
+    },
+  });
 }
 
 export function errorResponse(error: unknown) {

@@ -3,12 +3,14 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Building2, Eye, EyeOff, ShieldCheck, Sparkles, UserRoundCheck } from "lucide-react";
+import { ArrowRight, Building2, Eye, EyeOff, KeyRound, ShieldCheck, Sparkles, UserRoundCheck } from "lucide-react";
 import { apiRequest, jsonBody } from "@/lib/api-client";
+import { errorStatus } from "@/lib/errors";
 import type { SessionPayload } from "@/lib/domain-types";
 import { ThemePicker } from "@/features/app/components/theme-provider";
+import { SiteFooter } from "@/features/app/components/site-footer";
 
-export function AuthGate({ initialized, onReady }: { initialized: boolean; onReady: () => void }) {
+export function AuthGate({ initialized, onReady, onRefreshSession }: { initialized: boolean; onReady: () => void; onRefreshSession?: () => Promise<unknown> }) {
   const mode = initialized ? "login" : "setup";
   const [setupComplete, setSetupComplete] = useState(false);
   const activeMode = initialized || setupComplete ? "login" : mode;
@@ -67,7 +69,16 @@ export function AuthGate({ initialized, onReady }: { initialized: boolean; onRea
       }
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "Unable to continue. Try again.";
-      setError(message);
+      if (activeMode === "setup" && errorStatus(reason) === 409 && /already initialized/i.test(message)) {
+        // A cached or stale session payload can still show the one-time setup
+        // form after the workspace exists. Refresh the session and switch to
+        // sign-in instead of showing a dead-end form.
+        await onRefreshSession?.();
+        setSetupComplete(true);
+        setNotice("This workspace is already set up. Sign in with your Admin account.");
+      } else {
+        setError(message);
+      }
       setShowResend(activeMode === "login" && /verif/i.test(message));
     } finally {
       setLoading(false);
@@ -88,6 +99,7 @@ export function AuthGate({ initialized, onReady }: { initialized: boolean; onRea
   }
 
   return (
+    <>
     <main className="auth-layout">
       <section className="auth-story" aria-label="HCM Lite overview">
         <div className="auth-topline"><div className="brand-lockup brand-lockup-light"><span className="brand-mark"><Building2 size={20} strokeWidth={2.2} /></span><span>people<span className="brand-dot">.</span>works</span></div><ThemePicker compact /></div>
@@ -95,7 +107,7 @@ export function AuthGate({ initialized, onReady }: { initialized: boolean; onRea
           <span className="eyebrow eyebrow-light">HUMAN CAPITAL, MADE CLEAR</span>
           <h1>Good work starts with people feeling supported.</h1>
           <p>One calm place to manage your team, make confident decisions and keep the everyday work moving.</p>
-          <div className="auth-feature-strip"><span><UserRoundCheck size={14} /> People, made visible</span><span><Sparkles size={14} /> Less busywork</span></div>
+          <div className="auth-feature-strip"><span><UserRoundCheck size={14} /> People, made visible</span><span><Sparkles size={14} /> Less busywork</span><span><ShieldCheck size={14} /> Audited decisions</span></div>
         </div>
         <div className="auth-art-wrap"><Image src="/team-workspace.svg" alt="A team working together around a shared workspace" width={760} height={500} priority className="auth-art" /><div className="art-caption"><span className="art-caption-dot" /><span><strong>One team, one clear view</strong><small>People · time · progress</small></span></div></div>
         <div className="story-proof">
@@ -136,6 +148,8 @@ export function AuthGate({ initialized, onReady }: { initialized: boolean; onRea
         <div className="auth-footer"><span><ShieldCheck size={13} /> People-first, made practical.</span><span>HCM Lite <i>·</i> Your private workspace</span></div>
       </section>
     </main>
+    <SiteFooter variant="auth" note="Your workspace data stays scoped to your company and your role." />
+    </>
   );
 }
 
@@ -158,9 +172,9 @@ export function PasswordChangeGate({ name, onDone, onLogout }: { name: string; o
     }
   }
   return (
-    <main className="password-gate">
+    <main className="public-auth-page">
       <div className="password-card">
-        <span className="icon-well"><ShieldCheck size={22} /></span>
+        <span className="icon-well"><KeyRound size={22} /></span>
         <span className="eyebrow">ONE QUICK SECURITY STEP</span>
         <h1>Choose your own password, {name.split(" ")[0]}.</h1>
         <p className="muted">This account is using a temporary password. Change it to continue into your workspace.</p>
@@ -172,6 +186,7 @@ export function PasswordChangeGate({ name, onDone, onLogout }: { name: string; o
         </form>
         <button className="text-button auth-switch" onClick={onLogout} type="button">Sign out</button>
       </div>
+      <SiteFooter variant="auth" />
     </main>
   );
 }

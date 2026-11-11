@@ -73,7 +73,7 @@ npm test
 npm run build
 ```
 
-The Vitest suite contains 43 unit tests in 9 files covering date/time-zone handling, attendance classification, geofence math, leave rules, payroll and tax calculations, CSV safety, dashboard metrics, and PKR currency formatting. `npm run e2e` is wired for Playwright, but no browser spec is committed; use [DEMO_RUNBOOK](docs/DEMO_RUNBOOK.md) for a guided manual walkthrough. See [BUILD_STATUS](docs/BUILD_STATUS.md) for the latest evidence and the remaining runtime limits.
+The Vitest suite contains 57 unit tests in 12 files covering same-origin request validation, uncached account responses, Gemini free-tier model selection and fallback, date/time-zone handling, attendance classification, geofence math, leave rules, payroll and tax calculations, CSV safety, dashboard metrics, and PKR currency formatting. `npm run e2e` is wired for Playwright, but no browser spec is committed; use [DEMO_RUNBOOK](docs/DEMO_RUNBOOK.md) for a guided manual walkthrough. See [BUILD_STATUS](docs/BUILD_STATUS.md) for the latest evidence and the remaining runtime limits.
 
 ## Production build
 

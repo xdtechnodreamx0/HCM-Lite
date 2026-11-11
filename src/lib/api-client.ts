@@ -18,7 +18,7 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
     const message =
       typeof payload === "object" && payload !== null && "error" in payload
         ? String(payload.error)
-        : "The request could not be completed.";
+        : `The request could not be completed (HTTP ${response.status}).`;
     throw new AppError(response.status, message);
   }
   return payload as T;
