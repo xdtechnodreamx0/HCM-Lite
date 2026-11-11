@@ -10,7 +10,7 @@ In Vercel, open the `hcm_lite` project’s **Settings → Environment Variables*
 |---|---|
 | `MONGODB_URI` | MongoDB Atlas connection URI; keep it secret. |
 | `SESSION_SECRET` | A fresh random secret of at least 32 characters. |
-| `APP_BASE_URL` | The exact public HTTPS origin for this Vercel deployment, with no trailing path. |
+| `APP_BASE_URL` | Public HTTPS origin used for links in verification/reset emails, with no trailing path. Same-origin API checks also accept the request's actual forwarded host, so a stale value no longer blocks setup or sign-in. |
 | `MONGODB_DB` | Optional; defaults to `hcm_lite`. Use a dedicated database name. |
 | `GEMINI_API_KEY` | Optional; required for AI answers. Keep it server-side. |
 | `GEMINI_MODEL` | Optional; defaults to `gemini-3.8-flash`. |
@@ -24,6 +24,8 @@ To generate a session secret locally in PowerShell, run:
 ```
 
 Never paste a database URI, API key, or session secret into GitHub, source files, or a chat. When changing environment variables, trigger a new deployment so the running functions receive them.
+
+If a first-run or sign-in request returns `403 Invalid request origin.`, confirm the public alias is serving the latest deployment. The server compares the browser's `Origin` header with the request's forwarded host and with `APP_BASE_URL`; a deployment that predates that behavior only checked `APP_BASE_URL`, so a stale `http://localhost:3000` value blocked every production mutation. Promoting the latest `main` build fixes it even before the environment variable is corrected.
 
 ## Verify the published app
 

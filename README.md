@@ -22,7 +22,7 @@ The app container connects to the MongoDB service over Docker's private network.
 
 First Admin setup and new HR/employee login creation send a secure, expiring verification email when both `RESEND_API_KEY` and `EMAIL_FROM` are configured. Create a Resend account, add and verify a sending domain there, create an API key, then put the key and a verified sender such as `People.works <team@yourdomain.com>` in the ignored `.env.local` file. Restart the app with `docker compose up -d --force-recreate app`. Without these two settings, local setup stays password-based and does not pretend that an email was sent. Existing local setup is already complete; changing the settings will not trigger a new verification email for the current Admin.
 
-Never commit `.env.local`, email keys, or API credentials. For a public service, set `APP_BASE_URL` to its exact HTTPS address so verification links point to the deployed site.
+Never commit `.env.local`, email keys, or API credentials. For a public service, set `APP_BASE_URL` to its exact HTTPS address so verification links point to the deployed site. API origin checks also accept the request's actual forwarded host, so changing the Vercel alias does not break setup or sign-in by itself.
 
 The sign-in page links to employee sign-up and password recovery. New sign-ups are inactive employee requests; they cannot select their own role and must be linked to a People profile by Admin/HR. Password-reset links are single-use, expire after 30 minutes, and invalidate existing sessions. Both signup verification and real reset email delivery require `RESEND_API_KEY` plus a verified `EMAIL_FROM` sender; without them, password reset explains the missing setup and new employee requests remain inactive until linked.
 
@@ -81,7 +81,7 @@ The Vitest suite contains 43 unit tests in 9 files covering date/time-zone handl
 
 The included Dockerfile builds a standalone production image and runs as a non-root user. The source repository is [public on GitHub](https://github.com/xdtechnodreamx0/HCM-Lite), and GitHub currently reports a successful Vercel deployment check for `main`. A successful deploy check alone does not confirm that production environment variables or the database connection work; follow [DEPLOYMENT](docs/DEPLOYMENT.md) and verify `/api/health` on the Vercel URL.
 
-For Vercel, configure `MONGODB_URI`, `SESSION_SECRET`, and `APP_BASE_URL` in the project’s Environment Variables. `MONGODB_DB` is optional and defaults to `hcm_lite`. Add `GEMINI_API_KEY` to enable AI, and add both `RESEND_API_KEY` and `EMAIL_FROM` to send verification and password-reset emails. Keep all values server-side and redeploy after changing them.
+For Vercel, configure `MONGODB_URI`, `SESSION_SECRET`, and `APP_BASE_URL` in the project’s Environment Variables. `APP_BASE_URL` should be the public HTTPS origin; the server still validates same-origin mutations against the request's own forwarded host, so a mismatched or stale value cannot block a deployment alias. `MONGODB_DB` is optional and defaults to `hcm_lite`. Add `GEMINI_API_KEY` to enable AI, and add both `RESEND_API_KEY` and `EMAIL_FROM` to send verification and password-reset emails. Keep all values server-side and redeploy after changing them.
 
 ## Security notes
 
