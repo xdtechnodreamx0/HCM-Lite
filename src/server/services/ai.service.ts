@@ -1,5 +1,5 @@
-import { createRequire } from "node:module";
 import { z } from "zod";
+import { GoogleGenAI } from "@google/genai";
 import { AppError } from "@/lib/errors";
 import { geminiModelCandidates, isModelUnavailableError } from "@/lib/ai-models";
 import { monthRange, toIsoDate } from "@/lib/dates";
@@ -29,8 +29,6 @@ type ToolName = (typeof toolDeclarations)[number]["name"];
 type ToolResult = { name: ToolName; data: unknown };
 type GenerateContentResult = { text?: string; functionCalls?: Array<{ name?: string; args?: unknown }> };
 type GoogleGenAIClient = { models: { generateContent(input: { model: string; contents: string; config?: Record<string, unknown> }): Promise<GenerateContentResult> } };
-type GoogleGenAIConstructor = new (options: { apiKey: string }) => GoogleGenAIClient;
-const { GoogleGenAI } = createRequire(`${process.cwd()}/package.json`)("@google/genai") as { GoogleGenAI: GoogleGenAIConstructor };
 
 // Remember the model that worked so later requests skip known-bad models.
 let activeModel: string | null = null;
@@ -43,7 +41,7 @@ export function aiAvailable() {
 function getClient() {
   const env = getEnv();
   if (!env.geminiApiKey) return null;
-  return new GoogleGenAI({ apiKey: env.geminiApiKey });
+  return new GoogleGenAI({ apiKey: env.geminiApiKey }) as unknown as GoogleGenAIClient;
 }
 
 async function generateWithFallback(
