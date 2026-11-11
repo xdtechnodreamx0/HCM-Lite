@@ -1,6 +1,6 @@
 # Vercel deployment
 
-The source is in the [public GitHub repository](https://github.com/xdtechnodreamx0/HCM-Lite). Final code commit `ed7895c` passed GitHub Actions CI (install, lint, typecheck, tests, build), and Vercel reported `Deployment has completed` for that commit. A provider status confirms the deployment job finished; it does not confirm that the production database, sign-in, email, or AI integrations work. Verify those at the current Vercel project URL.
+The source is in the [public GitHub repository](https://github.com/xdtechnodreamx0/HCM-Lite). Code commit `8b1799a` passed GitHub Actions CI run `43022180849` (install, lint, typecheck, tests, build), and Vercel deployed it to the production alias. A provider status confirms the deployment job finished; it does not confirm that the production database, sign-in, email, or AI integrations work. Verify those at the current Vercel project URL.
 
 ## Required Vercel variables
 
