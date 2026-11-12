@@ -10,7 +10,7 @@ Release commits `210eefe` (portal release), `657422d` (AI fix), and `27934ad` (d
 
 The demo seed now produces 17 employees and five usable personas: Nadia Rahman (Admin), Iqra Javed (HR), Sana Malik, Taimur Raza, and Sarmad Baig (Employees). All five accept `12345` and are available from `/demo`. A reseed purges the marked demo company first, so the snapshot is exact and repeatable. The snapshot includes two 2026 joiners and one approved leave covering today.
 
-AI now uses Gemini's 10-second minimum SDK deadline, a 3-second hedge for the configured primary, a 10-second fallback stage, and the existing 15-second overall budget. Live local checks on the final image returned Admin headcount in 2.8s, an Employee's annual leave balance in 2.9s, and a deterministic company-wide refusal in 0.1s. Headcount and leave answers come from authorized server tools; no model output is faked.
+AI now uses Gemini's 10-second minimum SDK deadline, a 6-second cold-start allowance for the configured primary, a 14-second fallback stage, and a 22-second overall budget. Live local checks on the final image returned Admin headcount in 2.8s, an Employee's annual leave balance in 2.9s, and a deterministic company-wide refusal in 0.1s. Headcount and leave answers come from authorized server tools; no model output is faked.
 
 ## Verification evidence
 

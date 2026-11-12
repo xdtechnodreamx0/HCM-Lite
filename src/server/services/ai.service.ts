@@ -47,11 +47,14 @@ function getClient() {
   return new GoogleGenAI({ apiKey: env.geminiApiKey, httpOptions: { timeout: 10_000 } }) as unknown as GoogleGenAIClient;
 }
 
-// The configured primary gets a quick chance to answer. When it is overloaded
-// it can sit until the API deadline, so a short hedge keeps the overall
-// 15-second budget available for the lite models that answer immediately.
-const PREFERRED_MODEL_BUDGET_MS = 3_000;
-const FALLBACK_STAGE_BUDGET_MS = 10_000;
+// The configured primary gets a chance to answer. A cold serverless start can
+// spend several seconds opening the first Gemini connection, so the primary
+// needs more than the old 3-second hedge; otherwise the first request after a
+// deployment fails even though warm requests answer in a few seconds. The
+// fallback stage still leaves room for the lite models when the primary is
+// genuinely overloaded.
+const PREFERRED_MODEL_BUDGET_MS = 6_000;
+const FALLBACK_STAGE_BUDGET_MS = 14_000;
 
 async function generateWithFallback(
   client: GoogleGenAIClient,
@@ -215,7 +218,7 @@ async function loggedModelCall<T>(actor: SessionUser, toolNames: string[], opera
     try {
       return await Promise.race([
         operation(),
-        new Promise<never>((_, reject) => { timer = globalThis.setTimeout(() => reject(new Error("AI_TIMEOUT")), 15_000); }),
+        new Promise<never>((_, reject) => { timer = globalThis.setTimeout(() => reject(new Error("AI_TIMEOUT")), 22_000); }),
       ]);
     } finally {
       if (timer) globalThis.clearTimeout(timer);
