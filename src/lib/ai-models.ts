@@ -1,11 +1,15 @@
 // Gemini model selection lives here so the free tier keeps working even when
 // a configured model is retired, overloaded, or out of daily quota. Free-tier
 // quotas apply per model, so a sibling model can still answer.
+// Measured against this key on 2026-11-12: the flash-lite alias answered
+// tool-selection requests in 0.8–2.2s, while gemini-3.1-flash-lite returned
+// 503s and gemini-3.8-flash hung until the client deadline. Keep the stable
+// models here; a retired or congested model should not consume a whole stage.
 export const GEMINI_FREE_TIER_MODELS = [
-  "gemini-3.5-flash",
+  "gemini-flash-lite-latest",
+  "gemini-3-flash-preview",
   "gemini-3.5-flash-lite",
-  "gemini-3.1-flash-lite",
-  "gemini-3.8-flash",
+  "gemini-3.5-flash",
 ] as const;
 
 /**

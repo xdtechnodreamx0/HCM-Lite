@@ -12,9 +12,7 @@ describe("Gemini free-tier model selection", () => {
   it("does not duplicate a configured model that is already a default", () => {
     expect(geminiModelCandidates("gemini-3.5-flash")).toEqual([
       "gemini-3.5-flash",
-      "gemini-3.5-flash-lite",
-      "gemini-3.1-flash-lite",
-      "gemini-3.8-flash",
+      ...GEMINI_FREE_TIER_MODELS.filter((model) => model !== "gemini-3.5-flash"),
     ]);
   });
 

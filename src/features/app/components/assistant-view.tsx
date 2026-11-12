@@ -24,6 +24,7 @@ export function AssistantView({ role, employeeId, dashboard, dashboardFilters, o
   const [message, setMessage] = useState("");
   const [lines, setLines] = useState<ChatLine[]>([]);
   const [busy, setBusy] = useState(false);
+  const [slow, setSlow] = useState(false);
   const [error, setError] = useState("");
   const [summary, setSummary] = useState("");
   const [smartText, setSmartText] = useState("");
@@ -37,9 +38,15 @@ export function AssistantView({ role, employeeId, dashboard, dashboardFilters, o
     if (canSelfService) void apiRequest<{ balances: LeaveBalanceRecord[] }>("/api/leave-balances").then((result) => setBalances(result.balances)).catch(() => setBalances([]));
   }, [canSelfService]);
 
+  useEffect(() => {
+    if (!busy) return;
+    const timer = window.setTimeout(() => setSlow(true), 10_000);
+    return () => window.clearTimeout(timer);
+  }, [busy]);
+
   async function submitQuestion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!message.trim()) return;
-    const question = message.trim(); setMessage(""); setError(""); setBusy(true); setLines((current) => [...current, { role: "user", content: question }]);
+    const question = message.trim(); setMessage(""); setError(""); setSlow(false); setBusy(true); setLines((current) => [...current, { role: "user", content: question }]);
     try {
       const result = await apiRequest<AiReply>("/api/ai/chat", { method: "POST", body: jsonBody({ mode: "assistant", message: question, contextPage: currentPage }) });
       setAvailable(result.available);
@@ -50,7 +57,7 @@ export function AssistantView({ role, employeeId, dashboard, dashboardFilters, o
 
   async function summarize() {
     if (!dashboard) return;
-    setBusy(true); setError(""); setSummary("");
+    setBusy(true); setSlow(false); setError(""); setSummary("");
     try {
       const result = await apiRequest<AiReply>("/api/ai/chat", { method: "POST", body: jsonBody({ mode: "summary", message: "Summarize the current dashboard.", filters: {
         start: dashboardFilters.start || undefined,
@@ -63,7 +70,7 @@ export function AssistantView({ role, employeeId, dashboard, dashboardFilters, o
   }
 
   async function parseSmartLeave(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setSmartLoading(true); setError(""); setSmartPrefill(undefined); setLeaveSaved(false);
+    event.preventDefault(); setSlow(false); setSmartLoading(true); setError(""); setSmartPrefill(undefined); setLeaveSaved(false);
     try {
       const result = await apiRequest<AiReply>("/api/ai/chat", { method: "POST", body: jsonBody({ mode: "smart-leave", message: smartText }) });
       setAvailable(result.available);
@@ -92,7 +99,7 @@ export function AssistantView({ role, employeeId, dashboard, dashboardFilters, o
         {lines.length ? <div className="chat-history" aria-live="polite">{lines.map((line, index) => <article className={`chat-line chat-${line.role}`} key={`${line.role}-${index}`}><span className="chat-avatar">{line.role === "assistant" ? <Bot size={15} /> : "You"}</span><div className="chat-message"><p>{line.content}</p>{line.role === "assistant" && <small>{line.toolName === "no_answer" || line.toolName === "access_policy" ? `System response${line.toolName === "access_policy" ? " · access policy" : ""}` : `AI-generated · ${line.toolName ?? "company policy"}`}</small>}</div></article>)}</div> : <div className="chat-welcome"><span className="chat-welcome-icon"><Sparkles size={20} /></span><strong>What would you like to know?</strong><p>Examples: “Who is on leave today?” or “What is the grace period?”</p></div>}
         <FormError>{error}</FormError>
         <form className="chat-composer" onSubmit={submitQuestion}><label className="sr-only" htmlFor="assistant-question">Your question</label><input id="assistant-question" value={message} onChange={(event) => setMessage(event.target.value)} disabled={!available || busy} placeholder={available ? "Ask something about your workspace…" : "Connect Gemini to start asking questions"} /><button className="chat-send" aria-label="Send question" disabled={!available || busy || !message.trim()}>{busy ? <LoaderCircle className="spin" size={17} /> : <ArrowRight size={17} />}</button></form>
-        <div className="ai-footnote"><ShieldCheckIcon />Private tools follow your role permissions. The assistant cannot approve leave or change records.</div>
+        <div className="ai-footnote" role="status"><ShieldCheckIcon />{busy && slow ? "Gemini is responding slowly right now. Your question is still running." : "Private tools follow your role permissions. The assistant cannot approve leave or change records."}</div>
       </Panel>
       {role !== "EMPLOYEE" && <Panel title="Dashboard summary" subtitle="A short summary of the current dashboard values." className="summary-panel"><div className="summary-placeholder"><span className="summary-icon"><WandSparkles size={17} /></span><div><p>{summary || "Ask AI to summarize your current filtered KPIs in three to five clear points."}</p>{summary && <small className="summary-ai-label">AI-generated · dashboard summary</small>}</div></div><button className="button button-secondary button-small" disabled={!available || busy || !dashboard} onClick={() => void summarize()}>{busy ? "Working…" : "Summarize current dashboard"}<ArrowRight size={14} /></button><p className="summary-scope">{dashboardFilters.start || dashboardFilters.end || dashboardFilters.departmentId ? `Uses the dashboard filters you applied${dashboardFilters.departmentId ? " · department selected" : ""}.` : "Uses the current month-to-date company view."}</p></Panel>}
       {canSelfService && <Panel title="Smart leave" subtitle="Describe your time away, review the details and confirm through the normal leave form." className="smart-leave-panel"><form className="form-stack" onSubmit={parseSmartLeave}><label className="field-label">Describe your request<textarea required minLength={8} maxLength={600} rows={3} value={smartText} onChange={(event) => setSmartText(event.target.value)} placeholder="For example: I need next Monday and Tuesday off for a wedding." /></label><PrimaryButton disabled={!available || smartLoading}>{smartLoading ? "Preparing…" : "Prepare a leave draft"}<WandSparkles size={15} /></PrimaryButton></form>
