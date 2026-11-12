@@ -24,6 +24,9 @@ This contract applies to every Next.js Route Handler under `src/app/api/`.
 | `GET/POST /api/setup` | Public before setup; one-time POST | Setup availability and initial company/Admin |
 | `GET /api/session` | Public | Initialization state and current safe session summary |
 | `POST /api/auth/login`, `/logout`, `/password` | Public / signed-in | Authentication and password lifecycle |
+| `POST /api/auth/signup/company`, `POST /api/auth/verify-code` | Public; company sign-up requires configured email | Additional company workspace, then 6-digit or link verification before portal access |
+| `GET /api/demo/accounts`, `POST /api/auth/demo-login` | Public; `DEMO_MODE=true` and seeded `demoAccount` only | Demo persona list and one-click demo login |
+| `GET/POST/DELETE /api/customer/session` | Public; `DEMO_MODE=true` and seeded demo company only | Read-only customer session and sanitized snapshot; grants no staff API access |
 | `GET/POST /api/users`, `PATCH /api/users/:id` | Admin | HR/Admin login provisioning, activation, role, staff-profile link, reset |
 | `GET/PATCH /api/organization` | Admin/HR read; Admin write | Company policy/settings |
 | `GET/POST /api/departments`, `/designations`, `/leave-types`, `/holidays` | Admin manages; HR reads | Organization records |

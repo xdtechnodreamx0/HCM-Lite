@@ -4,8 +4,8 @@ MongoDB collections are defined by `src/server/db/collections.ts`; indexes are c
 
 | Collection | Purpose | Key constraints |
 |---|---|---|
-| `companies` | Company identity, calendar and attendance settings | Unique `setupKey` for single-install initialization |
-| `users` | Login identity, role, active state, password hash, session version | Unique normalized email; password hash never returned |
+| `companies` | Company identity, calendar and attendance settings | Unique `setupKey` for single-install initialization; `demoSeed` marks the one curated demo workspace |
+| `users` | Login identity, role, active state, password hash, session version | Unique normalized email; password hash never returned; `emailVerificationRequired`, `signupPending`, `forcePasswordChange`, and `demoAccount` gate access |
 | `employees` | Workforce profile and employment lifecycle | Unique company + employee code; unique company + email |
 | `departments`, `designations` | Company reference catalogs | Unique company + name; renames retain IDs for historical records |
 | `leaveTypes`, `holidays` | Leave policy and company calendar | Unique company + policy code/date |

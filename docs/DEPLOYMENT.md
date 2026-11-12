@@ -40,9 +40,9 @@ If a first-run or sign-in request returns `403 Invalid request origin.`, confirm
 ## Database and demo safety
 
 - Use a dedicated production database user with only the permissions the app needs. Configure Atlas network access with a supported, restricted egress setup; do not expose the database broadly.
-- Keep local fictional demo accounts (`admin@northstar.demo`, `hr@northstar.demo`, `employee@northstar.demo`, password `12345`) on the loopback-only demo service. Never load them into a public production database.
+- Keep local fictional demo accounts (`admin@northstar.demo`, `hr@northstar.demo`, `employee@northstar.demo`, `taimur@northstar.demo`, `sarmad@northstar.demo`, password `12345`) on the loopback-only demo service. Never load them into a public production database.
 - The demo HR account is linked to the fictional Iqra Javed staff profile and has a seeded pending self-request for Admin review. This demonstrates HR self-service and segregation of duties; do not copy that stance to production without a deliberate policy decision.
-- The demo guest page prefills a role email on sign-in, so treat it as an explicitly fake workspace. Keep the demo service on port 3001 and never expose it through a public alias.
+- The demo launcher (`/demo`), one-click login, and customer portal (`/customer`) are gated by `DEMO_MODE=true` and seeded demo accounts. Treat the demo as an explicitly fake workspace; keep it on port 3001 and never expose it through a public alias or enable `DEMO_MODE` in production.
 - Use a separate empty database for previews and manual setup checks. Do not reset or seed a database containing real records.
 - Rotate database, session, Gemini, and Resend secrets through their providers if exposed. Changing `SESSION_SECRET` signs out existing users.
 - Review database backup/restore support and external AI quotas before relying on those services.
