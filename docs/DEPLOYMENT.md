@@ -1,6 +1,6 @@
 # Vercel deployment
 
-The source is in the [public GitHub repository](https://github.com/xdtechnodreamx0/HCM-Lite). Code commit `8b1799a` passed GitHub Actions CI run `43022180849` (install, lint, typecheck, tests, build), and Vercel deployed it to the production alias. A provider status confirms the deployment job finished; it does not confirm that the production database, sign-in, email, or AI integrations work. Verify those at the current Vercel project URL.
+The source is in the [public GitHub repository](https://github.com/xdtechnodreamx0/HCM-Lite). Release commit `81ff51f` passed GitHub Actions CI run `43258823859` (install, lint, typecheck, tests, build), and Vercel deployed it to the production alias. A provider status confirms the deployment job finished; it does not confirm that the production database, sign-in, email, or AI integrations work. Verify those at the current Vercel project URL.
 
 ## Required Vercel variables
 
@@ -13,9 +13,15 @@ In Vercel, open the `hcm_lite` project’s **Settings → Environment Variables*
 | `APP_BASE_URL` | Public HTTPS origin used for links in verification/reset emails, with no trailing path. Same-origin API checks also accept the request's actual forwarded host, so a stale value no longer blocks setup or sign-in. |
 | `MONGODB_DB` | Optional; defaults to `hcm_lite`. Use a dedicated database name. |
 | `GEMINI_API_KEY` | Optional; required for AI answers. Keep it server-side. |
-| `GEMINI_MODEL` | Optional; defaults to the `gemini-3.6-flash` free tier. It falls back through `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`, and `gemini-3.8-flash` when a model is retired, overloaded, or out of its per-model daily free quota. |
-| `RESEND_API_KEY` | Optional; required for real verification and reset emails. |
-| `EMAIL_FROM` | Optional with Resend; a sender on a domain verified with Resend. Configure it together with `RESEND_API_KEY`. |
+| `GEMINI_MODEL` | Optional; defaults to `gemini-flash-lite-latest`. It falls back through `gemini-3-flash-preview`, `gemini-3.5-flash-lite`, and `gemini-3.5-flash` when a model is retired, overloaded, or out of its per-model daily free quota. |
+| `EMAIL_PROVIDER` | Optional; `smtp` or `resend`. When omitted, SMTP is used if fully configured; otherwise Resend is used. |
+| `SMTP_HOST` | Optional; SMTP server, for example `smtp.gmail.com`. |
+| `SMTP_PORT` | Optional; defaults to `465`. Use `587` with `SMTP_SECURE=false` for STARTTLS. |
+| `SMTP_SECURE` | Optional; defaults to true when the port is `465`. |
+| `SMTP_USER` | Optional; SMTP username. For Gmail, use the full Gmail address. |
+| `SMTP_PASS` | Optional; SMTP password or app password. Keep it secret. |
+| `EMAIL_FROM` | Required with either email provider; for SMTP use a sender such as `HCM Lite <you@gmail.com>`. |
+| `RESEND_API_KEY` | Optional; requires a verified Resend sending domain for arbitrary recipients. |
 
 To generate a session secret locally in PowerShell, run:
 

@@ -34,7 +34,7 @@ export async function signupCompany(raw: unknown, ip: string) {
   if (!provider) {
     throw new AppError(
       503,
-      "Company sign-up needs email delivery. Ask the installation owner to configure RESEND_API_KEY and EMAIL_FROM, then try again.",
+      "Company sign-up needs email delivery. Ask the installation owner to configure SMTP or Resend email, then try again.",
       "EMAIL_NOT_CONFIGURED",
     );
   }

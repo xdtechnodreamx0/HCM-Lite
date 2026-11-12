@@ -77,7 +77,7 @@ export function CompanySignupPage() {
     event.preventDefault();
     setError("");
     if (emailConfigured === false) {
-      setError("Email delivery is not configured on this installation. Company sign-up stays unavailable until RESEND_API_KEY and EMAIL_FROM are set.");
+      setError("Email delivery is not configured on this installation. Company sign-up stays unavailable until SMTP or Resend email is set up.");
       return;
     }
     setBusy(true);
@@ -122,7 +122,7 @@ export function CompanySignupPage() {
       <p className="muted">Create a separate workspace and its first Admin account. This is for a new company; the installation’s first workspace still uses one-time setup.</p>
       {emailConfigured === false && <div className="inline-alert warning-alert" role="status">
         <CircleAlert size={16} />
-        <span><strong>Company sign-up is unavailable right now.</strong> This installation has not configured email delivery, and every Admin must verify their address before entering the workspace. Ask the owner to set RESEND_API_KEY and EMAIL_FROM.</span>
+        <span><strong>Company sign-up is unavailable right now.</strong> This installation has not configured email delivery, and every Admin must verify their address before entering the workspace. Ask the owner to configure SMTP or Resend email.</span>
       </div>}
       <form className="form-stack" onSubmit={submit}>
         <label className="field-label">Company name<input required minLength={2} maxLength={120} autoComplete="organization" value={form.companyName} onChange={(event) => setForm({ ...form, companyName: event.target.value })} placeholder="e.g. Northstar Studio" /></label>

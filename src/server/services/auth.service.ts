@@ -282,7 +282,7 @@ export async function resetUserPassword(actor: SessionUser, userId: string) {
   if (!user) throw new AppError(404, "User not found.");
   if (!user.active || user.signupPending) throw new AppError(422, "Link and activate this employee account before sending a password reset.");
   const provider = getEmailProvider();
-  if (!provider) throw new AppError(503, "Password reset email is not configured. Add RESEND_API_KEY and EMAIL_FROM to .env.local.");
+  if (!provider) throw new AppError(503, "Password reset email is not configured. Add SMTP_HOST, SMTP_USER, SMTP_PASS, and EMAIL_FROM, or RESEND_API_KEY and EMAIL_FROM.");
   const company = await db.companies.findOne({ id: actor.companyId }, { projection: { name: 1 } });
   if (user.emailVerificationRequired && !user.emailVerifiedAt) {
     await issueEmailVerification({ id: user.id, companyId: actor.companyId, email: user.email, name: user.name, company: String(company?.name ?? "your company") });

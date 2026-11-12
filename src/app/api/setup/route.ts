@@ -1,5 +1,5 @@
 import { json, readJson, withApi } from "@/server/http";
-import { getEnv } from "@/lib/env";
+import { getEnv, isEmailConfigured } from "@/lib/env";
 import { setupCompany, setupSchema, isInitialized } from "@/server/services/setup.service";
 
 export async function GET(request: Request) {
@@ -7,7 +7,7 @@ export async function GET(request: Request) {
     const env = getEnv();
     return json({
       initialized: await isInitialized(),
-      emailConfigured: Boolean(env.resendApiKey && env.emailFrom),
+      emailConfigured: isEmailConfigured(),
       demoMode: env.demoMode,
     });
   });
