@@ -22,9 +22,10 @@ export function getEnv() {
     appBaseUrl: resolveAppBaseUrl(),
     nodeEnv: process.env.NODE_ENV || "development",
     geminiApiKey: process.env.GEMINI_API_KEY?.trim() || process.env.AI_API_KEY?.trim() || "",
-    geminiModel: process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash",
+    geminiModel: process.env.GEMINI_MODEL?.trim() || "gemini-3.6-flash",
     resendApiKey: process.env.RESEND_API_KEY?.trim() || "",
     emailFrom: process.env.EMAIL_FROM?.trim() || "",
+    demoMode: process.env.DEMO_MODE === "true",
   };
 }
 

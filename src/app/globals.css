@@ -531,6 +531,7 @@ input[type="checkbox"] { accent-color: var(--green); }
 .chat-user .chat-message { margin-left: auto; border-color: #e4eee6; border-radius: 11px 4px 11px 11px; background: #f1f7f2; }
 .chat-message p { margin: 0; color: #56645a; font-size: 10px; line-height: 1.65; white-space: pre-wrap; }
 .chat-message small { display: block; margin-top: 6px; color: #8da194; font-size: 8px; }
+.summary-ai-label { display: block; margin-top: 6px; color: #8da194; font-size: 8px; }
 .chat-composer { display: flex; gap: 8px; padding: 7px; border: 1px solid #dfe8e1; border-radius: 12px; background: #fff; }
 .chat-composer input { min-height: 37px; border: 0; box-shadow: none !important; }
 .chat-send { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; border: 0; border-radius: 9px; background: var(--green); color: #fff; cursor: pointer; }
@@ -1931,6 +1932,7 @@ html[data-theme="night"] .filter-joiner,
 html[data-theme="night"] .form-hint,
 html[data-theme="night"] .field-hint,
 html[data-theme="night"] .optional-label,
+html[data-theme="night"] .summary-ai-label,
 html[data-theme="night"] .chat-message small,
 html[data-theme="night"] .payroll-summary-grid small,
 html[data-theme="night"] .empty-state p,
@@ -1971,6 +1973,7 @@ html[data-theme="disco"] .filter-joiner,
 html[data-theme="disco"] .form-hint,
 html[data-theme="disco"] .field-hint,
 html[data-theme="disco"] .optional-label,
+html[data-theme="disco"] .summary-ai-label,
 html[data-theme="disco"] .chat-message small,
 html[data-theme="disco"] .payroll-summary-grid small,
 html[data-theme="disco"] .empty-state p,

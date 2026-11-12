@@ -2,6 +2,10 @@ import { z } from "zod";
 import { json, readJson, withApi, requireApiUser } from "@/server/http";
 import { assistantReply, smartLeaveDraft } from "@/server/services/ai.service";
 
+// A request may try several fallback models; allow enough time for a bounded
+// per-model timeout plus the final answer. Vercel caps this at the plan limit.
+export const maxDuration = 60;
+
 const requestSchema = z.object({
   mode: z.enum(["assistant", "summary", "smart-leave"]),
   message: z.string().trim().min(2).max(1200),
