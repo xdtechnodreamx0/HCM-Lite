@@ -39,14 +39,14 @@ AI now uses Gemini's 10-second minimum SDK deadline, a 3-second hedge for the co
 ## Known external setup
 
 - Production already has a real Admin setup (`initialized:true`). Do not reset, drop, or seed the production database.
-- `GEMINI_API_KEY` is not configured in Vercel. Add it there to enable the assistant. On 2026-11-12 the full Flash models were frequently overloaded; `gemini-3.5-flash-lite` and `gemini-3.1-flash-lite` answered reliably, and the fallback chain tries siblings when a model is unavailable, rate-limited, or slow.
-- Resend is unconfigured. Add `RESEND_API_KEY` and a verified `EMAIL_FROM` to enable company sign-up, verification codes, and password-reset email. Until then company sign-up stays unavailable and employee requests remain inactive until linked.
-- `APP_BASE_URL` should be set to the exact HTTPS origin in Vercel. Email links fall back to Vercel’s production URL when it is missing or localhost.
+- `GEMINI_API_KEY` and `GEMINI_MODEL=gemini-3.5-flash-lite` are now configured in Vercel Production. The model answered in 2.0s during direct probes; the fallback chain still tries siblings when a model is unavailable, rate-limited, or slow. A signed-in production verification is still pending.
+- `RESEND_API_KEY` and `EMAIL_FROM="HCM Lite <onboarding@resend.dev>"` are now configured locally and in Vercel Production. The Resend account has no verified sending domain yet, so `onboarding@resend.dev` is a test sender that can deliver only to the account owner’s address. Verify a domain before inviting external companies or using arbitrary employee addresses.
+- `APP_BASE_URL` is not set in Vercel. Email links fall back to Vercel’s stable production URL when it is missing or localhost.
 - The seeded demo is loopback-only. Its five accounts (`admin@northstar.demo`, `hr@northstar.demo`, `employee@northstar.demo`, `taimur@northstar.demo`, `sarmad@northstar.demo`, password `12345`) must never be exposed publicly. Keep `DEMO_MODE` unset or false in production.
 - Production Admin credentials were not available to this audit, so the live production tour stops at public pages and public API checks. Role workspaces were exercised on the isolated demo.
 
 ## Next checks
 
-1. Add `RESEND_API_KEY` and a verified `EMAIL_FROM`, set `APP_BASE_URL`, then complete one real company sign-up with a delivered 6-digit code and one delivered password-reset email.
-2. Add `GEMINI_API_KEY` in Vercel and verify one authorized answer, one employee-scoped answer, and one refusal outside the user’s scope with an authenticated production session.
+1. Complete one real company sign-up with a delivered 6-digit code and one delivered password-reset email. With no verified domain, Resend’s test sender delivers only to the account owner’s address.
+2. Verify one authorized answer, one employee-scoped answer, and one refusal outside the user’s scope with an authenticated production session.
 3. Recheck the production Admin’s existing workspace after deployment; never reset, drop, or seed the production database.
