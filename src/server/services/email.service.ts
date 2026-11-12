@@ -1,10 +1,13 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomInt } from "node:crypto";
+import type { Document } from "mongodb";
 import { AppError } from "@/lib/errors";
 import { getEmailProvider } from "@/lib/env";
 import { collections } from "@/server/db/collections";
 import { hashPassword } from "@/server/auth/passwords";
+import { setSessionCookie } from "@/server/auth/sessions";
 import { rateLimit } from "@/server/security/rate-limit";
 import { writeAudit } from "@/server/services/audit.service";
+import type { SessionUser } from "@/lib/types";
 
 const TOKEN_LIFETIME_MS = 30 * 60 * 1000;
 
@@ -16,17 +19,17 @@ function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character] ?? character);
 }
 
-async function sendVerificationEmail(input: { email: string; name: string; company: string; token: string }) {
+async function sendVerificationEmail(input: { email: string; name: string; company: string; token: string; code: string }) {
   const provider = getEmailProvider();
   if (!provider) return false;
   const link = `${provider.baseUrl.replace(/\/$/, "")}/verify-email?token=${encodeURIComponent(input.token)}`;
   const name = escapeHtml(input.name);
   const company = escapeHtml(input.company);
-  const html = `<!doctype html><html><body style="margin:0;background:#f4f7f4;font-family:Arial,sans-serif;color:#26342c"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:36px 12px"><tr><td align="center"><table role="presentation" width="560" cellspacing="0" cellpadding="0" style="max-width:560px;background:#fff;border:1px solid #e3ebe4;border-radius:18px;overflow:hidden"><tr><td style="padding:28px 34px;background:#1d4438;color:#fff;font-size:18px;font-weight:bold">people<span style="color:#83c292">.</span>works</td></tr><tr><td style="padding:34px"><p style="margin:0 0 8px;color:#688271;font-size:11px;letter-spacing:2px">VERIFY YOUR WORK EMAIL</p><h1 style="margin:0 0 14px;font-size:25px;line-height:1.25">Confirm your email, ${name}.</h1><p style="margin:0 0 24px;color:#64736a;font-size:15px;line-height:1.7">Confirm this email address for your People.works account at <strong>${company}</strong>. If your company is reviewing a new employee request, an Admin or HR teammate must also link your employee profile before you can sign in.</p><p style="margin:0 0 25px"><a href="${link}" style="display:inline-block;padding:13px 19px;border-radius:9px;background:#327a5b;color:#fff;text-decoration:none;font-weight:bold">Verify email address</a></p><p style="margin:0;color:#7b8980;font-size:12px;line-height:1.7">This link expires in 30 minutes. If you did not expect this message, you can ignore it.</p><p style="margin:22px 0 0;color:#9aa59d;font-size:11px;line-height:1.7;word-break:break-all">Button not working? Copy this link:<br>${link}</p></td></tr></table><p style="color:#9aa59d;font-size:11px">A secure message from People.works</p></td></tr></table></body></html>`;
+  const html = `<!doctype html><html><body style="margin:0;background:#f4f7f4;font-family:Arial,sans-serif;color:#26342c"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:36px 12px"><tr><td align="center"><table role="presentation" width="560" cellspacing="0" cellpadding="0" style="max-width:560px;background:#fff;border:1px solid #e3ebe4;border-radius:18px;overflow:hidden"><tr><td style="padding:28px 34px;background:#1d4438;color:#fff;font-size:18px;font-weight:bold">people<span style="color:#83c292">.</span>works</td></tr><tr><td style="padding:34px"><p style="margin:0 0 8px;color:#688271;font-size:11px;letter-spacing:2px">VERIFY YOUR WORK EMAIL</p><h1 style="margin:0 0 14px;font-size:25px;line-height:1.25">Confirm your email, ${name}.</h1><p style="margin:0 0 14px;color:#64736a;font-size:15px;line-height:1.7">Use this 6-digit code to confirm your email address for <strong>${company}</strong>.</p><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 20px"><tr><td align="center" style="padding:16px;border:1px solid #dbe8de;border-radius:12px;background:#f6faf7;font-size:30px;font-weight:bold;letter-spacing:8px;color:#1d4438">${input.code}</td></tr></table><p style="margin:0 0 24px;color:#64736a;font-size:15px;line-height:1.7">Prefer a link? Use the button below. If your company is reviewing a new employee request, an Admin or HR teammate must also link your employee profile before you can sign in.</p><p style="margin:0 0 25px"><a href="${link}" style="display:inline-block;padding:13px 19px;border-radius:9px;background:#327a5b;color:#fff;text-decoration:none;font-weight:bold">Verify email address</a></p><p style="margin:0;color:#7b8980;font-size:12px;line-height:1.7">This link expires in 30 minutes. If you did not expect this message, you can ignore it.</p><p style="margin:22px 0 0;color:#9aa59d;font-size:11px;line-height:1.7;word-break:break-all">Button not working? Copy this link:<br>${link}</p></td></tr></table><p style="color:#9aa59d;font-size:11px">A secure message from People.works</p></td></tr></table></body></html>`;
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${provider.apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: provider.from, to: [input.email], subject: `Verify your People.works email`, html, text: `Hi ${input.name},\n\nConfirm this email to activate your People.works login for ${input.company}: ${link}\n\nAfter confirming, sign in with the password you created or the temporary password your team shared with you. This link expires in 30 minutes.` }),
+    body: JSON.stringify({ from: provider.from, to: [input.email], subject: `Verify your People.works email`, html, text: `Hi ${input.name},\n\nYour People.works verification code is ${input.code}.\n\nEnter it here: ${provider.baseUrl.replace(/\/$/, "")}/verify-email?email=${encodeURIComponent(input.email)}\n\nOr open this verification link: ${link}\n\nAfter confirming, sign in with the password you created or the temporary password your team shared with you. This code and link expire in 30 minutes.` }),
     signal: AbortSignal.timeout(12_000),
   }).catch(() => null);
   if (!response?.ok) {
@@ -114,14 +117,54 @@ export async function completePasswordReset(token: string, nextPassword: string,
 export async function issueEmailVerification(user: { id: string; companyId: string; email: string; name: string; company: string }) {
   if (!getEmailProvider()) return false;
   const token = randomBytes(32).toString("base64url");
+  const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const db = await collections();
-  await db.users.updateOne({ id: user.id, companyId: user.companyId }, { $set: {
+  const filter = { id: user.id, companyId: user.companyId };
+  await db.users.updateOne(filter, { $set: {
     emailVerificationRequired: true,
     emailVerificationTokenHash: hashToken(token),
     emailVerificationExpiresAt: new Date(Date.now() + TOKEN_LIFETIME_MS),
+    emailVerificationCodeHash: hashToken(code),
+    emailVerificationCodeExpiresAt: new Date(Date.now() + TOKEN_LIFETIME_MS),
   } });
-  await sendVerificationEmail({ ...user, token });
+  try {
+    await sendVerificationEmail({ ...user, token, code });
+  } catch (error) {
+    await db.users.updateOne(filter, { $unset: {
+      emailVerificationTokenHash: "", emailVerificationExpiresAt: "",
+      emailVerificationCodeHash: "", emailVerificationCodeExpiresAt: "",
+    } });
+    throw error;
+  }
   return true;
+}
+
+async function completeEmailVerification(user: Document) {
+  const db = await collections();
+  const result = await db.users.updateOne(
+    { id: user.id, companyId: user.companyId, emailVerificationRequired: true },
+    { $set: { emailVerifiedAt: new Date() }, $unset: {
+      emailVerificationTokenHash: "", emailVerificationExpiresAt: "",
+      emailVerificationCodeHash: "", emailVerificationCodeExpiresAt: "",
+    } },
+  );
+  if (result.modifiedCount !== 1) throw new AppError(400, "This verification request is invalid or has expired.", "VERIFICATION_LINK_INVALID");
+  const company = await db.companies.findOne({ id: user.companyId }, { projection: { _id: 0, id: 1 } });
+  const signedIn = Boolean(company && user.active === true && user.signupPending !== true);
+  if (signedIn) {
+    await setSessionCookie({
+      id: String(user.id),
+      companyId: String(user.companyId),
+      email: String(user.email),
+      role: user.role as SessionUser["role"],
+      employeeId: typeof user.employeeId === "string" ? user.employeeId : undefined,
+      name: String(user.name),
+      forcePasswordChange: Boolean(user.forcePasswordChange),
+      sessionVersion: Number(user.sessionVersion ?? 1),
+    });
+  }
+  await writeAudit({ companyId: String(user.companyId), action: "user.email.verify", entity: "user", entityId: String(user.id) });
+  return { verified: true, signedIn };
 }
 
 export async function verifyEmailToken(token: string) {
@@ -133,8 +176,31 @@ export async function verifyEmailToken(token: string) {
     emailVerificationExpiresAt: { $gt: new Date() },
   });
   if (!user) throw new AppError(400, "This verification link is invalid or has expired.", "VERIFICATION_LINK_INVALID");
-  await db.users.updateOne({ id: user.id, companyId: user.companyId }, { $set: { emailVerifiedAt: new Date() }, $unset: { emailVerificationTokenHash: "", emailVerificationExpiresAt: "" } });
-  return { verified: true };
+  return completeEmailVerification(user);
+}
+
+export async function verifyEmailCode(rawEmail: string, rawCode: string, ip: string) {
+  const email = rawEmail.trim().toLowerCase();
+  const code = rawCode.trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !/^\d{6}$/.test(code)) {
+    throw new AppError(422, "Enter the 6-digit code from your verification email.");
+  }
+  const emailHash = createHash("sha256").update(email).digest("hex");
+  const ipHash = createHash("sha256").update(ip || "unknown").digest("hex");
+  await Promise.all([
+    rateLimit(`verify-code:email:${emailHash}`, 10, 60 * 60 * 1000),
+    rateLimit(`verify-code:ip:${ipHash}`, 30, 60 * 60 * 1000),
+  ]);
+  const db = await collections();
+  const user = await db.users.findOne({
+    email,
+    emailVerificationRequired: true,
+    emailVerifiedAt: { $exists: false },
+    emailVerificationCodeHash: hashToken(code),
+    emailVerificationCodeExpiresAt: { $gt: new Date() },
+  });
+  if (!user) throw new AppError(400, "That code is invalid or has expired. Request a fresh code and try again.", "VERIFICATION_CODE_INVALID");
+  return completeEmailVerification(user);
 }
 
 export async function resendEmailVerification(email: string, ip: string) {

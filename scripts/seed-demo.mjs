@@ -78,6 +78,7 @@ const departments = [
 ];
 
 const designations = [
+  { id: "des_demo_partner", name: "Managing Partner" },
   { id: "des_demo_engineer", name: "Software Engineer" },
   { id: "des_demo_lead", name: "Team Lead" },
   { id: "des_demo_people", name: "People Partner" },
@@ -88,6 +89,7 @@ const designations = [
 ];
 
 const employeeSeed = [
+  ["EMP-1000", "Nadia Rahman", "nadia.rahman", "people", "partner", 520000, "2020-01-06"],
   ["EMP-1001", "Ayesha Khan", "ayesha.khan", "product", "engineer", 280000, "2023-03-13"],
   ["EMP-1002", "Bilal Ahmed", "bilal.ahmed", "product", "engineer", 310000, "2022-11-07"],
   ["EMP-1003", "Sana Malik", "sana.malik", "product", "lead", 390000, "2021-06-21"],
@@ -100,16 +102,18 @@ const employeeSeed = [
   ["EMP-1010", "Usman Tariq", "usman.tariq", "people", "people", 320000, "2022-04-11"],
   ["EMP-1011", "Iqra Javed", "iqra.javed", "people", "people", 350000, "2023-07-03"],
   ["EMP-1012", "Meher Ali", "meher.ali", "design", "designer", 380000, "2022-02-14"],
-  ["EMP-1013", "Rayan Qureshi", "rayan.qureshi", "design", "designer", 410000, "2021-12-06"],
+  ["EMP-1013", "Rayan Qureshi", "rayan.qureshi", "design", "designer", 410000, "2026-02-16"],
   ["EMP-1014", "Sarmad Baig", "sarmad.baig", "finance", "analyst", 370000, "2022-05-23"],
-  ["EMP-1015", "Noor Fatima", "noor.fatima", "ops", "ops", 300000, "2023-04-17"],
+  ["EMP-1015", "Noor Fatima", "noor.fatima", "ops", "ops", 300000, "2026-04-06"],
   ["EMP-1016", "Omar Latif", "omar.latif", "ops", "ops", 350000, "2022-09-12"],
 ];
 
 const roleAccounts = [
-  { id: "usr_demo_admin", name: "Demo Admin", email: "admin@northstar.demo", role: "ADMIN" },
-  { id: "usr_demo_hr", name: "Iqra Javed", email: "hr@northstar.demo", role: "HR", employeeId: "emp_demo_1011" },
-  { id: "usr_demo_employee", name: "Sana Malik", email: "employee@northstar.demo", role: "EMPLOYEE", employeeId: "emp_demo_1003" },
+  { id: "usr_demo_admin", name: "Nadia Rahman", email: "admin@northstar.demo", role: "ADMIN", employeeCode: "EMP-1000", employeeId: "emp_demo_1000" },
+  { id: "usr_demo_hr", name: "Iqra Javed", email: "hr@northstar.demo", role: "HR", employeeCode: "EMP-1011", employeeId: "emp_demo_1011" },
+  { id: "usr_demo_employee", name: "Sana Malik", email: "employee@northstar.demo", role: "EMPLOYEE", employeeCode: "EMP-1003", employeeId: "emp_demo_1003" },
+  { id: "usr_demo_taimur", name: "Taimur Raza", email: "taimur@northstar.demo", role: "EMPLOYEE", employeeCode: "EMP-1004", employeeId: "emp_demo_1004" },
+  { id: "usr_demo_sarmad", name: "Sarmad Baig", email: "sarmad@northstar.demo", role: "EMPLOYEE", employeeCode: "EMP-1014", employeeId: "emp_demo_1014" },
 ];
 
 try {
@@ -132,6 +136,17 @@ try {
       if (await db.collection(item.name).countDocuments({ companyId: { $exists: true, $ne: DEMO_COMPANY_ID } })) {
         throw new Error(`Refusing to seed: collection ${item.name} contains records for another company.`);
       }
+    }
+    // A reseed is a reset: remove every record created inside the demo
+    // workspace so the curated snapshot is exact and repeatable.
+    const demoCollections = [
+      "users", "employees", "salaryStructures", "departments", "designations",
+      "leaveTypes", "holidays", "attendance", "leaveRequests", "leaveUsage",
+      "announcements", "notifications", "attendanceCorrections", "payrollRuns",
+      "payslips", "auditLogs", "aiLogs",
+    ];
+    for (const collectionName of demoCollections) {
+      await db.collection(collectionName).deleteMany({ companyId: DEMO_COMPANY_ID });
     }
   }
 
@@ -158,26 +173,27 @@ try {
   };
   await db.collection("companies").replaceOne({ setupKey: "primary" }, company, { upsert: true });
 
+  const accountsByEmployeeCode = new Map(roleAccounts.filter((account) => account.employeeCode).map((account) => [account.employeeCode, account]));
   const employees = employeeSeed.map(([employeeCode, name, slug, departmentKey, designationKey, salaryRupees, joiningDate], index) => {
     const department = departments.find((item) => item.id === `dept_demo_${departmentKey}`);
     const designation = designations.find((item) => item.id === `des_demo_${designationKey}`);
     const id = `emp_demo_${employeeCode.slice(-4)}`;
-    const isLoginEmployee = employeeCode === "EMP-1003";
-    const isLoginHr = employeeCode === "EMP-1011";
+    const account = accountsByEmployeeCode.get(employeeCode);
     return {
-      id, companyId: DEMO_COMPANY_ID, employeeCode, name, email: isLoginEmployee ? "employee@northstar.demo" : isLoginHr ? "hr@northstar.demo" : `${slug}@northstar.demo`,
+      id, companyId: DEMO_COMPANY_ID, employeeCode, name, email: account?.email ?? `${slug}@northstar.demo`,
       phone: `+92 300 555 ${String(1000 + index).slice(-4)}`, address: ["Gulberg, Lahore", "Clifton, Karachi", "F-7, Islamabad", "DHA, Lahore"][index % 4],
       gender: ["Female", "Male", "Not specified", "Female"][index % 4], departmentId: department.id, departmentName: department.name,
       designationId: designation.id, designationName: designation.name, joiningDate, exitDate: null,
-      status: index === 14 ? "probation" : "active", basicPaisa: salaryRupees * 100,
-      ...(isLoginEmployee ? { userId: "usr_demo_employee" } : isLoginHr ? { userId: "usr_demo_hr" } : {}), createdAt: now,
+      status: employeeCode === "EMP-1015" ? "probation" : "active", basicPaisa: salaryRupees * 100,
+      ...(account ? { userId: account.id } : {}), createdAt: now,
     };
   });
 
   const passwordHash = await bcrypt.hash(PASSWORD, 12);
   const users = roleAccounts.map((item, index) => ({
     ...item, companyId: DEMO_COMPANY_ID, passwordHash, active: true, forcePasswordChange: false,
-    sessionVersion: 1, createdAt: new Date(now.getTime() - index * 60_000),
+    sessionVersion: 1, demoAccount: true, emailVerificationRequired: false, emailVerifiedAt: now,
+    createdAt: new Date(now.getTime() - index * 60_000),
   }));
 
   const leaveTypes = [
@@ -218,6 +234,11 @@ try {
   const yearsFor = (dates) => [...new Set(dates.map((date) => Number(date.slice(0, 4))))].map((year) => ({ year, days: dates.filter((date) => Number(date.slice(0, 4)) === year).length }));
   const employeeAccount = employees.find((item) => item.id === "emp_demo_1003");
   const hrAccount = employees.find((item) => item.id === "emp_demo_1011");
+  const taimurAccount = employees.find((item) => item.id === "emp_demo_1004");
+  const sarmadAccount = employees.find((item) => item.id === "emp_demo_1014");
+  const ayeshaAccount = employees.find((item) => item.id === "emp_demo_1001");
+  const hamzaAccount = employees.find((item) => item.id === "emp_demo_1006");
+  const meherAccount = employees.find((item) => item.id === "emp_demo_1012");
   const leaveRequest = ({ id, person, typeCode, status, dates, reason, daysAgo = 1 }) => {
     const type = leaveTypes.find((item) => item.code === typeCode);
     return {
@@ -225,7 +246,7 @@ try {
       leaveTypeId: type.id, leaveTypeCode: type.code, leaveTypeName: type.name,
       startDate: dates[0], endDate: dates.at(-1), days: dates.length, dates, daysByYear: yearsFor(dates), reason, status,
       decisionComment: status === "approved" ? "Approved. Please coordinate coverage with your team lead." : "",
-      requestedBy: person.id === employeeAccount.id ? "usr_demo_employee" : "usr_demo_hr",
+      requestedBy: person.userId ?? "usr_demo_hr",
       ...(status === "approved" ? { decidedBy: person.id === hrAccount.id ? "usr_demo_admin" : "usr_demo_hr", decidedAt: now } : {}),
       createdAt: new Date(now.getTime() - daysAgo * 86_400_000),
       policySnapshot: { timezone: "Asia/Karachi", weekendDays: [0, 6], holidays: [], quota: type.yearlyQuota, unlimited: type.unlimited },
@@ -235,17 +256,20 @@ try {
   const approvedSecond = approvedDates[1] ?? approvedFirst;
   const leaveRequests = [
     leaveRequest({ id: "lev_demo_pending", person: employeeAccount, typeCode: "annual", status: "pending", dates: pendingDates, reason: "Family commitments planned in advance.", daysAgo: 0 }),
-    leaveRequest({ id: "lev_demo_pending_2", person: employees[0], typeCode: "casual", status: "pending", dates: [nextWorkdays[0]], reason: "A family appointment already scheduled.", daysAgo: 1 }),
+    leaveRequest({ id: "lev_demo_pending_2", person: ayeshaAccount, typeCode: "casual", status: "pending", dates: [nextWorkdays[0]], reason: "A family appointment already scheduled.", daysAgo: 1 }),
+    leaveRequest({ id: "lev_demo_pending_taimur", person: taimurAccount, typeCode: "sick", status: "pending", dates: [nextWorkdays[1]], reason: "Recovering from a fever; the doctor advised a day of rest.", daysAgo: 0 }),
+    leaveRequest({ id: "lev_demo_pending_sarmad", person: sarmadAccount, typeCode: "annual", status: "pending", dates: [nextWorkdays[0]], reason: "A pre-booked family commitment out of town.", daysAgo: 2 }),
     leaveRequest({ id: "lev_demo_approved", person: employeeAccount, typeCode: "casual", status: "approved", dates: approvedDates.length ? approvedDates : [approvedFirst], reason: "Personal appointment.", daysAgo: 5 }),
-    leaveRequest({ id: "lev_demo_approved_2", person: employees[5], typeCode: "sick", status: "approved", dates: [approvedSecond], reason: "Recovery day after a minor illness.", daysAgo: 9 }),
+    leaveRequest({ id: "lev_demo_approved_2", person: hamzaAccount, typeCode: "sick", status: "approved", dates: [approvedSecond], reason: "Recovery day after a minor illness.", daysAgo: 9 }),
+    leaveRequest({ id: "lev_demo_today", person: meherAccount, typeCode: "annual", status: "approved", dates: [today], reason: "A pre-booked personal day, approved by the People team.", daysAgo: 4 }),
     leaveRequest({ id: "lev_demo_hr_pending", person: hrAccount, typeCode: "annual", status: "pending", dates: [nextWorkdays[0]], reason: "A pre-planned family commitment.", daysAgo: 0 }),
     leaveRequest({ id: "lev_demo_hr_approved", person: hrAccount, typeCode: "annual", status: "approved", dates: [approvedFirst], reason: "Family event out of town.", daysAgo: 12 }),
   ];
 
   const announcements = [
-    { id: "ann_demo_planning", title: "Quarterly planning week begins Monday", body: "Team leads will share priorities and project milestones. Add your updates to the shared planning board before the first session.", authorId: "usr_demo_hr", authorName: "Demo HR", active: true, createdAt: now },
-    { id: "ann_demo_wellbeing", title: "Wellbeing afternoon · 30 October", body: "A half-day to reset, learn, or spend time with your team. Coordinate coverage with your manager before joining a session.", authorId: "usr_demo_admin", authorName: "Demo Admin", active: true, createdAt: new Date(now.getTime() - 2 * 86_400_000) },
-    { id: "ann_demo_enrollment", title: "Benefits enrollment is open", body: "Review your benefits choices with the People team by the end of next week. Contact HR if you need help comparing options.", authorId: "usr_demo_hr", authorName: "Demo HR", active: true, createdAt: new Date(now.getTime() - 5 * 86_400_000) },
+    { id: "ann_demo_planning", title: "Quarterly planning week begins Monday", body: "Team leads will share priorities and project milestones. Add your updates to the shared planning board before the first session.", authorId: "usr_demo_hr", authorName: "Iqra Javed", active: true, createdAt: now },
+    { id: "ann_demo_wellbeing", title: "Wellbeing afternoon · 30 October", body: "A half-day to reset, learn, or spend time with your team. Coordinate coverage with your manager before joining a session.", authorId: "usr_demo_admin", authorName: "Nadia Rahman", active: true, createdAt: new Date(now.getTime() - 2 * 86_400_000) },
+    { id: "ann_demo_enrollment", title: "Benefits enrollment is open", body: "Review your benefits choices with the People team by the end of next week. Contact HR if you need help comparing options.", authorId: "usr_demo_hr", authorName: "Iqra Javed", active: true, createdAt: new Date(now.getTime() - 5 * 86_400_000) },
   ].map((item) => ({ ...item, companyId: DEMO_COMPANY_ID }));
 
   const notifications = [
@@ -259,13 +283,24 @@ try {
       title: "An HR leave request needs Admin review", body: "Iqra Javed requested annual leave. HR self-requests are reviewed by an Admin.",
       href: "/leave", read: false, createdAt: now,
     },
+    {
+      id: "ntf_demo_hr_taimur_leave", companyId: DEMO_COMPANY_ID, recipientUserId: "usr_demo_hr",
+      title: "Taimur Raza requested sick leave", body: "A one-day sick leave request is waiting for a decision.",
+      href: "/leave", read: false, createdAt: now,
+    },
+    {
+      id: "ntf_demo_hr_sarmad_leave", companyId: DEMO_COMPANY_ID, recipientUserId: "usr_demo_hr",
+      title: "Sarmad Baig requested annual leave", body: "A one-day annual leave request is waiting for a decision.",
+      href: "/leave", read: false, createdAt: now,
+    },
   ];
 
   const corrections = [];
   const recentCorrectionDate = pastWorkdays.at(-1);
+  const bilalAccount = employees.find((item) => item.id === "emp_demo_1002");
   if (recentCorrectionDate) corrections.push({
-    id: "cor_demo_pending", companyId: DEMO_COMPANY_ID, employeeId: employees[1].id,
-    employeeName: employees[1].name, employeeCode: employees[1].employeeCode, workDate: recentCorrectionDate,
+    id: "cor_demo_pending", companyId: DEMO_COMPANY_ID, employeeId: bilalAccount.id,
+    employeeName: bilalAccount.name, employeeCode: bilalAccount.employeeCode, workDate: recentCorrectionDate,
     before: { checkInAt: new Date(`${recentCorrectionDate}T04:42:00.000Z`).toISOString(), checkOutAt: new Date(`${recentCorrectionDate}T12:00:00.000Z`).toISOString() },
     after: { checkInAt: new Date(`${recentCorrectionDate}T04:20:00.000Z`).toISOString(), checkOutAt: new Date(`${recentCorrectionDate}T12:00:00.000Z`).toISOString() },
     reason: "I arrived before the door scanner recorded my check-in.", status: "pending", createdAt: now,
@@ -333,8 +368,9 @@ try {
     ["leaveTypes", leaveTypes], ["holidays", holidays], ["attendance", attendance], ["leaveRequests", leaveRequests],
     ["leaveUsage", [
       { id: "usage_demo_employee_casual", companyId: DEMO_COMPANY_ID, employeeId: employeeAccount.id, leaveTypeCode: "casual", year: Number(today.slice(0, 4)), approvedDays: Math.max(1, approvedDates.length), updatedAt: now },
-      { id: "usage_demo_customer_sick", companyId: DEMO_COMPANY_ID, employeeId: employees[5].id, leaveTypeCode: "sick", year: Number(today.slice(0, 4)), approvedDays: 1, updatedAt: now },
+      { id: "usage_demo_customer_sick", companyId: DEMO_COMPANY_ID, employeeId: hamzaAccount.id, leaveTypeCode: "sick", year: Number(today.slice(0, 4)), approvedDays: 1, updatedAt: now },
       { id: "usage_demo_hr_annual", companyId: DEMO_COMPANY_ID, employeeId: hrAccount.id, leaveTypeCode: "annual", year: Number(today.slice(0, 4)), approvedDays: 1, updatedAt: now },
+      { id: "usage_demo_design_annual", companyId: DEMO_COMPANY_ID, employeeId: meherAccount.id, leaveTypeCode: "annual", year: Number(today.slice(0, 4)), approvedDays: 1, updatedAt: now },
     ]],
     ["announcements", announcements], ["notifications", notifications], ["attendanceCorrections", corrections],
     ["payrollRuns", payrollRuns], ["auditLogs", auditLogs],

@@ -61,17 +61,22 @@ export function PeopleView({ employees, organization, role, refresh, notify, sea
     const form = event.currentTarget;
     const values = new FormData(form);
     try {
-      const result = await apiRequest<{ temporaryPassword: string | null; accountLinked?: boolean }>("/api/employees", {
+      const result = await apiRequest<{ temporaryPassword: string | null; accountLinked?: boolean; accountType?: "login" | "profile" }>("/api/employees", {
         method: "POST",
         body: jsonBody({
           employeeCode: String(values.get("employeeCode")), name: String(values.get("name")), email: String(values.get("email")),
           phone: String(values.get("phone") ?? ""), address: String(values.get("address") ?? ""), gender: String(values.get("gender") ?? ""),
           departmentId: String(values.get("departmentId")), designationId: String(values.get("designationId")),
           joiningDate: String(values.get("joiningDate")), status: String(values.get("status")), basicSalary: Number(values.get("basicSalary")),
+          accountType: String(values.get("accountType") ?? "login"),
         }),
       });
       setTemporaryPassword(result.temporaryPassword ?? "");
-      setSuccess(result.accountLinked ? "Employee profile linked to the existing sign-up. They can use the password they created." : "Employee and login created. Share this temporary password securely; it is shown only now.");
+      setSuccess(result.accountLinked
+        ? "Employee profile linked to the existing sign-up. They can use the password they created."
+        : result.accountType === "profile"
+          ? "Employee profile added without a login. They will appear in the directory and can be given an account later."
+          : "Employee and login created. Share this temporary password securely; it is shown only now.");
       form.reset();
       setPage(1); setQuery(""); setQueryInput("");
       await refresh();
@@ -105,17 +110,18 @@ export function PeopleView({ employees, organization, role, refresh, notify, sea
 
   return <>
     <PageHeading eyebrow="PEOPLE DIRECTORY" title="People" description="A thoughtful overview of the people behind the work. New team profiles get Employee access by default." action={canManagePeople ? <PrimaryButton onClick={() => { setShowForm((visible) => !visible); setError(""); setSuccess(""); }}><Plus size={16} /> Add employee</PrimaryButton> : <span className="role-view-chip"><Users size={14} />Company directory · view only</span>} />
-    {showForm && canManagePeople && <Panel title="Add a team member" subtitle="A login is created with a one-time temporary password.">
+    {showForm && canManagePeople && <Panel title="Add a team member" subtitle="Choose a staff login with a one-time password, or add a directory profile without portal access.">
       <form className="form-grid" onSubmit={createEmployee}>
         <label className="field-label">Employee code<input name="employeeCode" required minLength={2} maxLength={32} placeholder="NW-024" /></label>
         <label className="field-label">Full name<input name="name" required minLength={2} autoComplete="name" placeholder="Team member’s name" /></label>
-        <label className="field-label">Work email<input name="email" required type="email" autoComplete="email" placeholder="person@company.com" /></label>
+        <label className="field-label">Work email<input name="email" required type="email" autoComplete="email" placeholder="person@company.com" /><span className="field-hint">Does not need to be a live mailbox; Admin-created staff logins use a temporary password.</span></label>
         <label className="field-label">Phone <span className="optional-label">optional</span><input name="phone" type="tel" autoComplete="tel" placeholder="+92 …" /></label>
         <label className="field-label">Department<select name="departmentId" required defaultValue=""><option value="" disabled>Select department</option>{organization?.departments.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <label className="field-label">Designation<select name="designationId" required defaultValue=""><option value="" disabled>Select designation</option>{organization?.designations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <label className="field-label">Joining date<input name="joiningDate" required type="date" defaultValue={new Date().toISOString().slice(0, 10)} /></label>
         <label className="field-label">Employment status<select name="status" defaultValue="active"><option value="active">Active</option><option value="probation">Probation</option></select></label>
         <label className="field-label">Basic monthly salary (PKR)<input name="basicSalary" required type="number" min="1" max="100000000" step="0.01" inputMode="decimal" placeholder="85000" /></label>
+        <label className="field-label">Portal access<select name="accountType" defaultValue="login"><option value="login">Employee login · temporary password</option><option value="profile">Directory profile only · no login</option></select><span className="field-hint">Profile-only people still appear in attendance, leave, and payroll records.</span></label>
         <label className="field-label">Gender <span className="optional-label">optional</span><select name="gender" defaultValue=""><option value="">Prefer not to say</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Self describe</option></select></label>
         <label className="field-label span-two">Address <span className="optional-label">optional</span><input name="address" maxLength={240} placeholder="City, country" /></label>
         <div className="form-actions span-two"><FormError>{error}</FormError><FormSuccess>{success}</FormSuccess>{temporaryPassword && <div className="temp-credential"><BadgeCheck size={16} /><span>Temporary password</span><code>{temporaryPassword}</code><button type="button" onClick={() => void navigator.clipboard?.writeText(temporaryPassword)}>Copy</button></div>}<PrimaryButton disabled={saving}>{saving ? "Creating…" : "Create employee"}<ArrowRight size={15} /></PrimaryButton></div>

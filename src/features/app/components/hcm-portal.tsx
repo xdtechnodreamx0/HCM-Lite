@@ -233,7 +233,7 @@ export function HcmPortal() {
     return <main className="connection-screen"><span className="icon-well"><CircleHelp size={24} /></span><h1>We couldn’t reach your workspace.</h1><p>{loadError}</p><p className="muted">Check MongoDB and the required environment variables, then retry.</p><button className="button button-primary" onClick={() => { setLoading(true); void refreshSession(); }}>Try again</button></main>;
   }
   if (!session?.initialized || !currentUser) {
-    return <AuthGate initialized={session?.initialized ?? false} onReady={completeAuth} onRefreshSession={refreshSession} />;
+    return <AuthGate initialized={session?.initialized ?? false} demoMode={session?.demoMode} emailConfigured={session?.emailConfigured} onReady={completeAuth} onRefreshSession={refreshSession} />;
   }
   if (currentUser.forcePasswordChange) {
     return <PasswordChangeGate name={currentUser.name} onDone={completeAuth} onLogout={() => { void logOut(); }} />;

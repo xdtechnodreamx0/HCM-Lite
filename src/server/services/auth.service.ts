@@ -126,6 +126,7 @@ export async function createLogin(input: {
   name: string;
   role: Role;
   employeeId?: string;
+  requireEmailVerification?: boolean;
 }) {
   requireRole(input.actor, ["ADMIN", "HR"]);
   if (input.role === "ADMIN") requireRole(input.actor, ["ADMIN"]);
@@ -137,6 +138,10 @@ export async function createLogin(input: {
   const now = new Date();
   const id = (await import("@/lib/ids")).createId("usr");
   const emailProvider = getEmailProvider();
+  // Staff logins created by HR use a temporary password shown once. Their
+  // work email does not need to be a real mailbox; the password change is the
+  // access control. Admin/HR logins can still require verification.
+  const verificationRequired = emailProvider && input.requireEmailVerification !== false;
   let linkedEmployee: Record<string, unknown> | null = null;
   if (input.employeeId) {
     linkedEmployee = await db.employees.findOne({ id: input.employeeId, companyId: input.actor.companyId });
@@ -154,7 +159,7 @@ export async function createLogin(input: {
     active: true,
     forcePasswordChange: true,
     sessionVersion: 1,
-    ...(emailProvider ? { emailVerificationRequired: true } : {}),
+    ...(verificationRequired ? { emailVerificationRequired: true } : {}),
     createdAt: now,
   });
   try {
@@ -165,7 +170,7 @@ export async function createLogin(input: {
       );
       if (linked.modifiedCount !== 1) throw new AppError(409, "That employee profile was linked to another login. Refresh and try again.");
     }
-    if (emailProvider) {
+    if (verificationRequired) {
       const company = await db.companies.findOne({ id: input.actor.companyId }, { projection: { name: 1 } });
       await issueEmailVerification({ id, companyId: input.actor.companyId, email: input.email.toLowerCase(), name: input.name, company: String(company?.name ?? "your company") });
     }

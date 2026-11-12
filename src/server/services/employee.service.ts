@@ -23,6 +23,7 @@ export const employeeSchema = z.object({
   joiningDate: z.iso.date(),
   status: z.enum(["active", "probation", "exited"]).default("active"),
   basicSalary: z.number().positive().max(100_000_000),
+  accountType: z.enum(["login", "profile"]).default("login"),
 });
 
 function cleanEmployee(doc: Record<string, unknown>) {
@@ -115,6 +116,9 @@ export async function createEmployee(actor: SessionUser, raw: unknown) {
     ? existing
     : null;
   if (existing && !signupAccount) throw new AppError(409, "A login with this email already exists.");
+  if (input.accountType === "profile" && signupAccount) {
+    throw new AppError(422, "This email already has a pending sign-up request. Create a login to link it, or use a different email.", "SIGNUP_LINK_REQUIRED");
+  }
   const id = createId("emp");
   const now = new Date();
   const record = {
@@ -141,22 +145,24 @@ export async function createEmployee(actor: SessionUser, raw: unknown) {
   let createdUserId: string | undefined;
   try {
     let login: { id: string; temporaryPassword: string } | null = null;
-    if (signupAccount) {
-      const linked = await db.users.updateOne(
-        { id: signupAccount.id, companyId: actor.companyId, signupPending: true, active: false },
-        { $set: { employeeId: id, role: "EMPLOYEE", active: true, signupPending: false, sessionVersion: Number(signupAccount.sessionVersion ?? 0) + 1, updatedAt: now } },
-      );
-      if (linked.modifiedCount !== 1) throw new AppError(409, "This sign-up request changed. Refresh the page and try again.");
-      createdUserId = signupAccount.id;
-      await db.employees.updateOne({ id, companyId: actor.companyId }, { $set: { userId: signupAccount.id } });
-      if (getEmailProvider() && signupAccount.emailVerificationRequired && !signupAccount.emailVerifiedAt) {
-        const company = await db.companies.findOne({ id: actor.companyId }, { projection: { name: 1 } });
-        await issueEmailVerification({ id: signupAccount.id, companyId: actor.companyId, email: signupAccount.email, name: signupAccount.name, company: String(company?.name ?? "your company") });
+    if (input.accountType === "login") {
+      if (signupAccount) {
+        const linked = await db.users.updateOne(
+          { id: signupAccount.id, companyId: actor.companyId, signupPending: true, active: false },
+          { $set: { employeeId: id, role: "EMPLOYEE", active: true, signupPending: false, sessionVersion: Number(signupAccount.sessionVersion ?? 0) + 1, updatedAt: now } },
+        );
+        if (linked.modifiedCount !== 1) throw new AppError(409, "This sign-up request changed. Refresh the page and try again.");
+        createdUserId = signupAccount.id;
+        await db.employees.updateOne({ id, companyId: actor.companyId }, { $set: { userId: signupAccount.id } });
+        if (getEmailProvider() && signupAccount.emailVerificationRequired && !signupAccount.emailVerifiedAt) {
+          const company = await db.companies.findOne({ id: actor.companyId }, { projection: { name: 1 } });
+          await issueEmailVerification({ id: signupAccount.id, companyId: actor.companyId, email: signupAccount.email, name: signupAccount.name, company: String(company?.name ?? "your company") });
+        }
+      } else {
+        login = await createLogin({ actor, email: record.email, name: record.name, role: "EMPLOYEE", employeeId: id, requireEmailVerification: false });
+        createdUserId = login.id;
+        await db.employees.updateOne({ id, companyId: actor.companyId }, { $set: { userId: login.id } });
       }
-    } else {
-      login = await createLogin({ actor, email: record.email, name: record.name, role: "EMPLOYEE", employeeId: id });
-      createdUserId = login.id;
-      await db.employees.updateOne({ id, companyId: actor.companyId }, { $set: { userId: login.id } });
     }
     await db.salaryStructures.insertOne({
       id: createId("sal"), companyId: actor.companyId, employeeId: id,
@@ -167,7 +173,7 @@ export async function createEmployee(actor: SessionUser, raw: unknown) {
       actor, companyId: actor.companyId, action: "employee.create", entity: "employee", entityId: id,
       after: { employeeCode: record.employeeCode, name: record.name, departmentId: record.departmentId, status: record.status },
     });
-    return { employeeId: id, userId: createdUserId, temporaryPassword: login?.temporaryPassword ?? null, accountLinked: Boolean(signupAccount) };
+    return { employeeId: id, userId: createdUserId, temporaryPassword: login?.temporaryPassword ?? null, accountLinked: Boolean(signupAccount), accountType: input.accountType };
   } catch (error) {
     await Promise.all([
       db.employees.deleteOne({ id, companyId: actor.companyId }),

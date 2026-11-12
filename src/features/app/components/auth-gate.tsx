@@ -3,14 +3,30 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Building2, Eye, EyeOff, KeyRound, ShieldCheck, Sparkles, UserRoundCheck } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Building2, Eye, EyeOff, KeyRound, ShieldCheck, Sparkles, UserRoundCheck, UsersRound } from "lucide-react";
 import { apiRequest, jsonBody } from "@/lib/api-client";
-import { errorStatus } from "@/lib/errors";
+import { errorStatus, apiMessage } from "@/lib/errors";
 import type { SessionPayload } from "@/lib/domain-types";
 import { ThemePicker } from "@/features/app/components/theme-provider";
 import { SiteFooter } from "@/features/app/components/site-footer";
 
-export function AuthGate({ initialized, onReady, onRefreshSession }: { initialized: boolean; onReady: () => void; onRefreshSession?: () => Promise<unknown> }) {
+type DemoAccount = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  title: string;
+  department: string;
+  portal: string;
+};
+
+export function AuthGate({ initialized, demoMode = false, emailConfigured = false, onReady, onRefreshSession }: {
+  initialized: boolean;
+  demoMode?: boolean;
+  emailConfigured?: boolean;
+  onReady: () => void;
+  onRefreshSession?: () => Promise<unknown>;
+}) {
   const mode = initialized ? "login" : "setup";
   const [setupComplete, setSetupComplete] = useState(false);
   const activeMode = initialized || setupComplete ? "login" : mode;
@@ -21,6 +37,18 @@ export function AuthGate({ initialized, onReady, onRefreshSession }: { initializ
   const [resending, setResending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ companyName: "", adminName: "", adminEmail: "", adminPassword: "", email: "", password: "" });
+  const [demoAccounts, setDemoAccounts] = useState<DemoAccount[]>([]);
+  const [demoBusy, setDemoBusy] = useState("");
+  const [demoError, setDemoError] = useState("");
+
+  useEffect(() => {
+    if (!demoMode || activeMode !== "login") return;
+    let active = true;
+    void apiRequest<{ enabled: boolean; accounts: DemoAccount[] }>("/api/demo/accounts")
+      .then((result) => { if (active && result.enabled) setDemoAccounts(result.accounts); })
+      .catch(() => { if (active) setDemoAccounts([]); });
+    return () => { active = false; };
+  }, [demoMode, activeMode]);
 
   useEffect(() => {
     if (activeMode !== "login") return;
@@ -90,11 +118,24 @@ export function AuthGate({ initialized, onReady, onRefreshSession }: { initializ
     setError("");
     try {
       await apiRequest("/api/auth/resend-verification", { method: "POST", body: jsonBody({ email: form.email }) });
-      setNotice("If this account needs verification, a fresh link is on its way.");
+      setNotice("If this account needs verification, a fresh code and link are on their way.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to send a verification email.");
     } finally {
       setResending(false);
+    }
+  }
+
+  async function openDemo(accountId: string) {
+    setDemoBusy(accountId);
+    setDemoError("");
+    try {
+      await apiRequest("/api/auth/demo-login", { method: "POST", body: jsonBody({ accountId }) });
+      onReady();
+    } catch (reason) {
+      setDemoError(apiMessage(reason));
+    } finally {
+      setDemoBusy("");
     }
   }
 
@@ -141,9 +182,27 @@ export function AuthGate({ initialized, onReady, onRefreshSession }: { initializ
             <button className="button button-primary button-wide" disabled={loading} type="submit">{loading ? "Please wait…" : activeMode === "setup" ? "Create workspace" : "Sign in"}<ArrowRight size={16} /></button>
           {showResend && <button className="text-button resend-verification" type="button" disabled={resending || !form.email} onClick={() => void resendVerification()}>{resending ? "Sending link…" : "Resend email verification link"}<ArrowRight size={14} /></button>}
           </form>
-          {activeMode === "login" && <div className="auth-links"><Link href="/forgot-password">Forgot password?</Link><Link href="/signup">Request employee access</Link></div>}
+          {activeMode === "login" && <>
+            <div className="auth-links"><Link href="/forgot-password">Forgot password?</Link><Link href="/signup">Employee sign-up</Link></div>
+            <div className="auth-entry-grid">
+              <Link className="auth-entry-card" href="/signup/company"><span className="auth-entry-icon"><Building2 size={16} /></span><span><strong>Create a company</strong><small>{emailConfigured ? "New Admin workspace · email verified" : "Needs email delivery configured"}</small></span><ArrowRight size={14} /></Link>
+              <Link className="auth-entry-card" href="/customer"><span className="auth-entry-icon"><UsersRound size={16} /></span><span><strong>Customer demo</strong><small>Name + email · read-only portal</small></span><ArrowUpRight size={14} /></Link>
+            </div>
+            {demoMode && <div className="auth-demo-block">
+              <div className="auth-demo-heading"><span><Sparkles size={14} /> LIVE DEMO WORKSPACE</span><small>One click, no password</small></div>
+              {demoAccounts.length ? <div className="auth-demo-accounts">
+                {demoAccounts.map((account) => <button key={account.id} type="button" className="auth-demo-account" disabled={Boolean(demoBusy)} onClick={() => void openDemo(account.id)}>
+                  <span className="auth-demo-avatar">{account.name.split(" ").map((part) => part[0]).slice(0, 2).join("")}</span>
+                  <span><strong>{account.name}</strong><small>{account.title}{account.department ? ` · ${account.department}` : ""}</small></span>
+                  <span className="auth-demo-role">{account.role === "EMPLOYEE" ? "Staff" : account.role}</span>
+                  {demoBusy === account.id ? <span className="auth-demo-spinner" aria-label="Opening demo" /> : <ArrowRight size={14} />}
+                </button>)}
+              </div> : <p className="auth-demo-empty">The demo workspace is not seeded on this installation. Use a normal account, or seed `hcm_lite_demo` first.</p>}
+              {demoError && <div className="inline-alert error-alert" role="alert">{demoError}</div>}
+            </div>}
+          </>}
           <Link className="guest-demo-link" href="/demo">Explore the read-only guest dashboard<ArrowRight size={14} /></Link>
-          {!initialized && activeMode === "setup" ? <p className="auth-footnote">Your first Admin account is permanent. Add HR and employee logins once you are inside.</p> : null}
+          {!initialized && activeMode === "setup" ? <p className="auth-footnote">Your first Admin account is permanent. Add HR and employee logins once you are inside.{!emailConfigured ? " Email delivery is not configured, so you will enter the workspace immediately." : ""}</p> : null}
         </div>
         <div className="auth-footer"><span><ShieldCheck size={13} /> People-first, made practical.</span><span>HCM Lite <i>·</i> Your private workspace</span></div>
       </section>

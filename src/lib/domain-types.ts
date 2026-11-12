@@ -96,6 +96,8 @@ export type LeaveRecord = {
 
 export type SessionPayload = {
   initialized: boolean;
+  demoMode?: boolean;
+  emailConfigured?: boolean;
   user: null | {
     id: string;
     email: string;

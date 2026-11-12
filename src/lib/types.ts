@@ -28,3 +28,16 @@ export type SessionUser = {
   forcePasswordChange: boolean;
   sessionVersion: number;
 };
+
+/**
+ * A customer demo session is deliberately separate from the HCM staff session.
+ * It can only read a small, sanitized demo snapshot and never grants access to
+ * the Admin, HR, or Employee APIs.
+ */
+export type CustomerSession = {
+  kind: "customer";
+  name: string;
+  email: string;
+  companyId: string;
+  demo: true;
+};
