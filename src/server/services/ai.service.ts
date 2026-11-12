@@ -42,9 +42,16 @@ function getClient() {
   const env = getEnv();
   if (!env.geminiApiKey) return null;
   // A single slow model must not consume the whole request budget. Each call
-  // is capped so fallback models still get a chance to answer.
-  return new GoogleGenAI({ apiKey: env.geminiApiKey, httpOptions: { timeout: 8_000 } }) as unknown as GoogleGenAIClient;
+  // is capped so fallback models still get a chance to answer. Gemini rejects
+  // a manual deadline below 10 seconds, so this is the shortest valid cap.
+  return new GoogleGenAI({ apiKey: env.geminiApiKey, httpOptions: { timeout: 10_000 } }) as unknown as GoogleGenAIClient;
 }
+
+// The configured primary gets a quick chance to answer. When it is overloaded
+// it can sit until the API deadline, so a short hedge keeps the overall
+// 15-second budget available for the lite models that answer immediately.
+const PREFERRED_MODEL_BUDGET_MS = 3_000;
+const FALLBACK_STAGE_BUDGET_MS = 10_000;
 
 async function generateWithFallback(
   client: GoogleGenAIClient,
@@ -54,10 +61,26 @@ async function generateWithFallback(
   const candidates = activeModel
     ? [activeModel, ...geminiModelCandidates(configuredModel).filter((model) => model !== activeModel)]
     : geminiModelCandidates(configuredModel);
+  const stageDeadline = Date.now() + FALLBACK_STAGE_BUDGET_MS;
   let lastError: unknown;
   for (const model of candidates) {
+    const remaining = stageDeadline - Date.now();
+    if (remaining < 750) {
+      lastError ??= new Error("MODEL_TIMEOUT");
+      break;
+    }
+    // A model that just answered gets the rest of the stage. Untried or
+    // previously unavailable models must prove themselves quickly.
+    const budget = model === activeModel ? remaining : Math.min(remaining, PREFERRED_MODEL_BUDGET_MS);
+    let timer: ReturnType<typeof globalThis.setTimeout> | undefined;
     try {
-      const response = await client.models.generateContent({ ...input, model });
+      const pending = client.models.generateContent({ ...input, model });
+      // If our hedge wins the race, the slower request may still settle later.
+      pending.catch(() => {});
+      const response = await Promise.race([
+        pending,
+        new Promise<never>((_, reject) => { timer = globalThis.setTimeout(() => reject(new Error("MODEL_TIMEOUT")), budget); }),
+      ]);
       activeModel = model;
       return response;
     } catch (error) {
@@ -67,10 +90,15 @@ async function generateWithFallback(
       // per model, so a sibling can still answer. Auth and input errors surface
       // unchanged.
       if (!isModelUnavailableError(error) && !isModelOverloadedError(error) && !isModelRateLimitedError(error) && !isModelTimeoutError(error)) throw error;
+    } finally {
+      if (timer) globalThis.clearTimeout(timer);
     }
   }
   if (isModelRateLimitedError(lastError)) {
     throw new AppError(503, "The assistant has reached its Gemini free-tier request limit for now. Please try again later, or configure a Gemini API key with a higher quota.");
+  }
+  if (isModelTimeoutError(lastError)) {
+    throw new AppError(504, "The assistant took too long to answer. Please try again.");
   }
   throw lastError instanceof Error ? lastError : new Error("No Gemini model is available.");
 }
