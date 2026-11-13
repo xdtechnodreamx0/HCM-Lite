@@ -1,6 +1,6 @@
 # Vercel deployment
 
-The source is in the [public GitHub repository](https://github.com/xdtechnodreamx0/HCM-Lite). Release commit `81ff51f` passed GitHub Actions CI run `43258823859` (install, lint, typecheck, tests, build), and Vercel deployed it to the production alias. A provider status confirms the deployment job finished; it does not confirm that the production database, sign-in, email, or AI integrations work. Verify those at the current Vercel project URL.
+The source is in the [public GitHub repository](https://github.com/xdtechnodreamx0/HCM-Lite). Release commit `1a10a8c` passed GitHub Actions CI run `43261118969` (install, lint, typecheck, 66 tests, build), and Vercel deployed it to the production alias. A provider status confirms the deployment job finished; it does not confirm that the production database, sign-in, email, or AI integrations work. Verify those at the current Vercel project URL. Production SMTP delivery was separately verified by requesting a password reset for the workspace Admin and confirming the message arrived from the configured Gmail sender.
 
 ## Required Vercel variables
 
