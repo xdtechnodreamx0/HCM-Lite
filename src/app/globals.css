@@ -1346,7 +1346,65 @@ html[data-theme="disco"] .user-popover-head strong, html[data-theme="disco"] .to
 .auth-form-wrap h2 { margin: 13px 0 9px; font-size: 32px; font-weight: 650; letter-spacing: -.055em; line-height: 1.1; }
 .auth-form-wrap > p { margin-bottom: 26px; font-size: 12.5px; line-height: 1.65; }
 .auth-links { margin: 17px 0 6px; }
-.auth-links a { font-size: 11px; }
+.auth-links a { font-size: 11px; font-weight: 620; }
+.auth-entry-grid {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.auth-entry-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 52px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  transition: border-color .16s ease, background .16s ease;
+}
+.auth-entry-card:hover {
+  border-color: var(--green);
+  background: var(--mint);
+  color: var(--ink);
+}
+.auth-entry-card:focus-visible {
+  outline: 3px solid #9ec6ad;
+  outline-offset: 2px;
+}
+.auth-entry-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  background: var(--green-light);
+  color: var(--green-dark);
+}
+.auth-entry-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+.auth-entry-copy strong {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  line-height: 1.3;
+}
+.auth-entry-copy small {
+  color: var(--muted);
+  font-size: 9.5px;
+  line-height: 1.35;
+}
+.auth-entry-card > svg {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--subtle);
+}
 .auth-footnote { font-size: 10.5px; }
 .auth-footer { left: clamp(24px, 5.6vw, 92px); right: clamp(24px, 5.6vw, 92px); bottom: 20px; font-size: 10px; }
 .guest-demo-link {

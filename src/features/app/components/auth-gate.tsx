@@ -185,8 +185,8 @@ export function AuthGate({ initialized, demoMode = false, emailConfigured = fals
           {activeMode === "login" && <>
             <div className="auth-links"><Link href="/forgot-password">Forgot password?</Link><Link href="/signup">Employee sign-up</Link></div>
             <div className="auth-entry-grid">
-              <Link className="auth-entry-card" href="/signup/company"><span className="auth-entry-icon"><Building2 size={16} /></span><span><strong>Create a company</strong><small>{emailConfigured ? "New Admin workspace · email verified" : "Needs email delivery configured"}</small></span><ArrowRight size={14} /></Link>
-              <Link className="auth-entry-card" href="/customer"><span className="auth-entry-icon"><UsersRound size={16} /></span><span><strong>Customer demo</strong><small>Name + email · read-only portal</small></span><ArrowUpRight size={14} /></Link>
+              <Link className="auth-entry-card" href="/signup/company"><span className="auth-entry-icon"><Building2 size={16} /></span><span className="auth-entry-copy"><strong>Create a company</strong><small>{emailConfigured ? "New Admin workspace · email verified" : "Needs email delivery configured"}</small></span><ArrowRight size={14} /></Link>
+              <Link className="auth-entry-card" href="/customer"><span className="auth-entry-icon"><UsersRound size={16} /></span><span className="auth-entry-copy"><strong>Customer demo</strong><small>Name + email · read-only portal</small></span><ArrowUpRight size={14} /></Link>
             </div>
             {demoMode && <div className="auth-demo-block">
               <div className="auth-demo-heading"><span><Sparkles size={14} /> LIVE DEMO WORKSPACE</span><small>One click, no password</small></div>
