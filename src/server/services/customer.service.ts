@@ -15,14 +15,79 @@ export const customerSessionSchema = z.object({
 
 type DemoCompany = Record<string, unknown> & { id: string; name: string };
 
+/**
+ * The production deployment has no demo database by design. The customer portal
+ * still needs a believable, fully populated read-only snapshot, so this static
+ * sample mirrors the seeded Northstar Studio workspace without touching staff
+ * records, payroll, or any real tenant data.
+ */
+const SAMPLE_COMPANY: DemoCompany = {
+  id: "co_demo_northstar",
+  name: "Northstar Studio",
+  timezone: "Asia/Karachi",
+  officeStart: "09:00",
+  graceMinutes: 15,
+  weekendDays: [0, 6],
+};
+
+function sampleDate(daysAgo: number) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() - daysAgo);
+  return toIsoDate(date, SAMPLE_COMPANY.timezone as string);
+}
+
+function sampleCustomerDashboard() {
+  const timezone = String(SAMPLE_COMPANY.timezone);
+  return {
+    company: {
+      name: String(SAMPLE_COMPANY.name),
+      timezone,
+      officeStart: String(SAMPLE_COMPANY.officeStart),
+      graceMinutes: Number(SAMPLE_COMPANY.graceMinutes),
+      weekendDays: SAMPLE_COMPANY.weekendDays as number[],
+    },
+    today: toIsoDate(new Date(), timezone),
+    stats: { headcount: 17, departments: 6, onLeaveToday: 1, newJoiners: 2 },
+    teams: [
+      { name: "Product & Engineering", count: 5, lead: "Sana Malik" },
+      { name: "Customer Experience", count: 4, lead: "Hira Noor" },
+      { name: "People & Operations", count: 3, lead: "Nadia Rahman" },
+      { name: "Design", count: 2, lead: "Meher Ali" },
+      { name: "Business Operations", count: 2, lead: "Omar Latif" },
+      { name: "Finance", count: 1, lead: "Sarmad Baig" },
+    ],
+    people: [
+      { name: "Nadia Rahman", designation: "Managing Partner", department: "People & Operations" },
+      { name: "Sana Malik", designation: "Team Lead", department: "Product & Engineering" },
+      { name: "Bilal Ahmed", designation: "Software Engineer", department: "Product & Engineering" },
+      { name: "Hira Noor", designation: "Team Lead", department: "Customer Experience" },
+      { name: "Meher Ali", designation: "Product Designer", department: "Design" },
+      { name: "Sarmad Baig", designation: "Finance Analyst", department: "Finance" },
+      { name: "Omar Latif", designation: "Operations Manager", department: "Business Operations" },
+      { name: "Iqra Javed", designation: "People Partner", department: "People & Operations" },
+    ],
+    updates: [
+      {
+        title: "Quarterly planning week begins Monday",
+        body: "Team leads will share priorities and project milestones. Add your updates to the shared planning board before the first session.",
+        date: sampleDate(0),
+      },
+      {
+        title: "Wellbeing afternoon · Friday 20 November",
+        body: "The studio closes at 1pm for a wellbeing afternoon. Coordinate client coverage with your team lead before Friday.",
+        date: sampleDate(2),
+      },
+      {
+        title: "Open enrollment closes on 27 November",
+        body: "Review your health, dental, and life cover choices before the deadline. Drop-in sessions run every Tuesday and Thursday.",
+        date: sampleDate(5),
+      },
+    ],
+  };
+}
+
 async function demoCompany() {
-  if (!getEnv().demoMode) {
-    throw new AppError(
-      503,
-      "The customer demo portal is not enabled on this deployment. Ask the demo owner to set DEMO_MODE=true.",
-      "DEMO_MODE_DISABLED",
-    );
-  }
+  if (!getEnv().demoMode) return SAMPLE_COMPANY;
   const db = await collections();
   const company = await db.companies.findOne(
     { demoSeed: true },
@@ -62,10 +127,10 @@ export async function clearCustomerSession() {
 export async function customerBootstrap(session: CustomerSession | null) {
   if (!getEnv().demoMode) {
     return {
-      available: false,
-      reason: "The customer demo portal is only available when DEMO_MODE=true.",
-      session: null,
-      dashboard: null,
+      available: true,
+      company: { name: SAMPLE_COMPANY.name },
+      session: session ? { name: session.name, email: session.email } : null,
+      dashboard: session ? sampleCustomerDashboard() : null,
     };
   }
   let company: DemoCompany;
@@ -88,6 +153,7 @@ export async function customerBootstrap(session: CustomerSession | null) {
 }
 
 export async function customerDashboard(session: CustomerSession) {
+  if (!getEnv().demoMode) return sampleCustomerDashboard();
   const db = await collections();
   const company = await db.companies.findOne(
     { id: session.companyId, demoSeed: true },

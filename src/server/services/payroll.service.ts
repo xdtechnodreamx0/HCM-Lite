@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { AppError } from "@/lib/errors";
 import { createId } from "@/lib/ids";
 import { formatPkr } from "@/lib/currency";
-import { eachIsoDate, isWorkday, monthRange } from "@/lib/dates";
+import { eachIsoDate, isWorkday, monthRange, toIsoDate } from "@/lib/dates";
 import { calculatePayslip } from "@/lib/payroll-rules";
 import { requireRole, requireSelfOrStaff } from "@/server/auth/authorization";
 import { collections } from "@/server/db/collections";
@@ -60,6 +60,11 @@ export async function createPayrollDraft(actor: SessionUser, periodInput: string
   const period = periodSchema.parse(periodInput);
   const { start, end } = monthRange(Number(period.slice(0, 4)), Number(period.slice(5, 7)));
   const calendar = await getCalendar(actor.companyId);
+  const today = toIsoDate(new Date(), calendar.timezone);
+  // A mid-month draft must not treat workdays that have not happened yet as
+  // absences. Only elapsed days can be judged; future days stay payable until
+  // the month is finalized.
+  const absenceThrough = today < end ? today : end;
   const db = await collections();
   const [employees, existing] = await Promise.all([
     db.employees.find({ companyId: actor.companyId, status: { $in: ["active", "probation", "exited"] }, joiningDate: { $lte: end } }, { projection: { _id: 0 } }).sort({ name: 1 }).toArray(),
@@ -93,6 +98,7 @@ export async function createPayrollDraft(actor: SessionUser, periodInput: string
         if (leave.leaveTypeCode === "unpaid") unpaidLeaveDays += 1;
         continue;
       }
+      if (date > absenceThrough) continue;
       const record = attendanceByDate.get(date);
       if (!record) absentDays += 1;
       else if (record.status === "half_day") halfDays += 1;

@@ -44,9 +44,14 @@ function monthBounds(period) {
   return { start, end };
 }
 
-function previousMonth(period) {
+function recentPeriods(period, count) {
   const [year, month] = period.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 2, 1)).toISOString().slice(0, 7);
+  const periods = [];
+  for (let offset = count; offset >= 1; offset -= 1) {
+    const date = new Date(Date.UTC(year, month - 1 - offset, 1));
+    periods.push(`${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`);
+  }
+  return periods;
 }
 
 function taxForAnnualGross(annualGrossPaisa) {
@@ -64,9 +69,9 @@ function taxForAnnualGross(annualGrossPaisa) {
 
 const now = new Date();
 const today = isoDate(now);
+const currentYear = Number(today.slice(0, 4));
 const currentPeriod = today.slice(0, 7);
-const finalizedPeriod = previousMonth(currentPeriod);
-const finalPeriodBounds = monthBounds(finalizedPeriod);
+const finalizedPeriods = recentPeriods(currentPeriod, 10);
 
 const departments = [
   { id: "dept_demo_product", name: "Product & Engineering" },
@@ -203,9 +208,26 @@ try {
     id: `lt_demo_${code}`, companyId: DEMO_COMPANY_ID, code, name, yearlyQuota, unlimited, active: true, createdAt: now,
   }));
 
-  const attendanceStart = finalPeriodBounds.start;
-  const workDates = datesBetween(attendanceStart, today).filter(isWorkday);
-  const attendance = [];
+  // Public and company holidays for the demo year. Attendance and payroll skip
+  // these dates so the sample workspace never shows punches or absences on a
+  // day the office was closed.
+  const holidays = [
+    { id: "hol_demo_kashmir", date: `${currentYear}-02-05`, name: "Kashmir Solidarity Day" },
+    { id: "hol_demo_eid_fitr", date: `${currentYear}-03-20`, name: "Eid-ul-Fitr" },
+    { id: "hol_demo_pakistan_day", date: `${currentYear}-03-23`, name: "Pakistan Day" },
+    { id: "hol_demo_labour", date: `${currentYear}-05-01`, name: "Labour Day" },
+    { id: "hol_demo_eid_adha", date: `${currentYear}-05-27`, name: "Eid-ul-Adha" },
+    { id: "hol_demo_independence", date: `${currentYear}-08-14`, name: "Independence Day" },
+    { id: "hol_demo_milad", date: `${currentYear}-08-26`, name: "Eid Milad-un-Nabi" },
+    { id: "hol_demo_iqbal", date: `${currentYear}-11-09`, name: "Iqbal Day" },
+    { id: "hol_demo_winter", date: `${currentYear}-12-25`, name: "Quaid-e-Azam Day · office closed" },
+    { id: "hol_demo_year_end", date: `${currentYear}-12-31`, name: "Year-end office closure" },
+  ].map((item) => ({ ...item, companyId: DEMO_COMPANY_ID }));
+  const holidayDates = new Set(holidays.map((item) => item.date));
+
+  const attendanceStart = `${today.slice(0, 4)}-01-01`;
+  const workDates = datesBetween(attendanceStart, today).filter((date) => isWorkday(date) && !holidayDates.has(date));
+  const attendanceRecords = [];
   for (const [dayIndex, workDate] of workDates.entries()) {
     for (const [personIndex, person] of employees.entries()) {
       if (workDate < person.joiningDate) continue;
@@ -217,7 +239,7 @@ try {
       const checkInAt = new Date(`${workDate}T04:${String(minutesAfter).padStart(2, "0")}:00.000Z`);
       const checkOutAt = isMissingCheckout ? null : new Date(`${workDate}T${isHalfDay ? "09:00" : "12:10"}:00.000Z`);
       const status = isMissingCheckout ? "missing_checkout" : isHalfDay ? "half_day" : isLate ? "late" : "present";
-      attendance.push({
+      attendanceRecords.push({
         id: `att_demo_${person.id}_${workDate}`, companyId: DEMO_COMPANY_ID, employeeId: person.id, workDate,
         checkInAt, checkOutAt, workedSeconds: isMissingCheckout ? 14_400 : isHalfDay ? 14_400 : 28_800,
         status, late: isLate, halfDay: isHalfDay, missingCheckout: isMissingCheckout,
@@ -265,60 +287,110 @@ try {
     leaveRequest({ id: "lev_demo_hr_pending", person: hrAccount, typeCode: "annual", status: "pending", dates: [nextWorkdays[0]], reason: "A pre-planned family commitment.", daysAgo: 0 }),
     leaveRequest({ id: "lev_demo_hr_approved", person: hrAccount, typeCode: "annual", status: "approved", dates: [approvedFirst], reason: "Family event out of town.", daysAgo: 12 }),
   ];
+  const approvedLeaveKeys = new Set(leaveRequests
+    .filter((leave) => leave.status === "approved")
+    .flatMap((leave) => leave.dates.map((date) => `${leave.employeeId}|${date}`)));
+  const attendance = attendanceRecords.filter((record) => !approvedLeaveKeys.has(`${record.employeeId}|${record.workDate}`));
 
+  const announcement = ({ id, title, body, authorId = "usr_demo_hr", authorName = "Iqra Javed", daysAgo = 0, active = true, pinned = false }) => ({
+    id, companyId: DEMO_COMPANY_ID, title, body, authorId, authorName, active, pinned,
+    createdAt: new Date(now.getTime() - daysAgo * 86_400_000),
+  });
   const announcements = [
-    { id: "ann_demo_planning", title: "Quarterly planning week begins Monday", body: "Team leads will share priorities and project milestones. Add your updates to the shared planning board before the first session.", authorId: "usr_demo_hr", authorName: "Iqra Javed", active: true, createdAt: now },
-    { id: "ann_demo_wellbeing", title: "Wellbeing afternoon · 30 October", body: "A half-day to reset, learn, or spend time with your team. Coordinate coverage with your manager before joining a session.", authorId: "usr_demo_admin", authorName: "Nadia Rahman", active: true, createdAt: new Date(now.getTime() - 2 * 86_400_000) },
-    { id: "ann_demo_enrollment", title: "Benefits enrollment is open", body: "Review your benefits choices with the People team by the end of next week. Contact HR if you need help comparing options.", authorId: "usr_demo_hr", authorName: "Iqra Javed", active: true, createdAt: new Date(now.getTime() - 5 * 86_400_000) },
-  ].map((item) => ({ ...item, companyId: DEMO_COMPANY_ID }));
+    announcement({ id: "ann_demo_planning", title: "Quarterly planning week begins Monday", pinned: true, body: "Team leads will share priorities and project milestones in the Monday all-hands. Add your updates to the shared planning board before the first session so every squad can plan around the same commitments.", daysAgo: 0 }),
+    announcement({ id: "ann_demo_wellbeing", title: "Wellbeing afternoon · Friday 20 November", authorId: "usr_demo_admin", authorName: "Nadia Rahman", body: "We are closing the studio at 1pm for a wellbeing afternoon. Use the time to reset, learn something new, or simply step away from screens. Please coordinate client coverage with your team lead before Friday.", daysAgo: 2 }),
+    announcement({ id: "ann_demo_enrollment", title: "Open enrollment closes on 27 November", body: "Review your health, dental, and life cover choices in the benefits portal before 27 November. The People team is holding drop-in sessions every Tuesday and Thursday from 2pm to 4pm if you would like help comparing plans.", daysAgo: 5 }),
+    announcement({ id: "ann_demo_newstarter", title: "Noor Fatima joins Business Operations", authorId: "usr_demo_admin", authorName: "Nadia Rahman", body: "Noor joins us as an Operations Associate and will sit with Omar on the fourth floor. Her first month will focus on studio scheduling and vendor coordination. Please give her a warm welcome.", daysAgo: 8 }),
+    announcement({ id: "ann_demo_expenses", title: "Updated Q4 expense policy", authorId: "usr_demo_sarmad", authorName: "Sarmad Baig", body: "From this month, client entertainment claims need a named attendee list and a short business rationale. Receipts must be submitted within 14 days. The Finance team has updated the claim form and the policy page in the workspace.", daysAgo: 11 }),
+    announcement({ id: "ann_demo_lift", title: "Karachi office: lift maintenance on 18 November", body: "The main passenger lift will be serviced on Tuesday 18 November between 8am and 12pm. Please use the service stairs or the rear lift. The ground-floor meeting rooms remain available for client calls.", daysAgo: 14 }),
+    announcement({ id: "ann_demo_learning", title: "Learning stipend: submit November claims by 25 November", body: "The monthly learning stipend covers courses, books, and conferences up to Rs 25,000. Submit your claim with a receipt and a one-line learning summary by 25 November. Unused amounts do not roll over.", daysAgo: 18 }),
+    announcement({ id: "ann_demo_reviews", title: "Performance conversations: book your slot by 30 November", authorId: "usr_demo_admin", authorName: "Nadia Rahman", body: "The autumn performance cycle is open. Book a 45-minute conversation with your manager before 30 November, and add your self-review to the shared template. Calibration sessions will run in the first week of December.", daysAgo: 23 }),
+    announcement({ id: "ann_demo_offsite", title: "Save the date: studio offsite on 4 December", body: "This year's studio offsite will be at the Beach View Pavilion in Karachi. The day includes a strategy session, team activities, and dinner. Travel details and the full agenda will follow next week.", daysAgo: 29 }),
+  ];
 
+  const notification = ({ id, recipientUserId, title, body, href = "/announcements", read = false, hoursAgo = 0 }) => ({
+    id, companyId: DEMO_COMPANY_ID, recipientUserId, title, body, href, read,
+    createdAt: new Date(now.getTime() - hoursAgo * 3_600_000),
+  });
   const notifications = [
-    ...users.map((user, index) => ({
-      id: `ntf_demo_${user.id}`, companyId: DEMO_COMPANY_ID, recipientUserId: user.id,
+    ...users.map((user, index) => notification({
+      id: `ntf_demo_${user.id}`, recipientUserId: user.id,
       title: "Quarterly planning week begins Monday", body: "Team leads will share priorities and project milestones.",
-      href: "/announcements", read: index === 0, createdAt: now,
+      read: index === 0, hoursAgo: 2 + index,
     })),
-    {
-      id: "ntf_demo_admin_hr_leave", companyId: DEMO_COMPANY_ID, recipientUserId: "usr_demo_admin",
-      title: "An HR leave request needs Admin review", body: "Iqra Javed requested annual leave. HR self-requests are reviewed by an Admin.",
-      href: "/leave", read: false, createdAt: now,
-    },
-    {
-      id: "ntf_demo_hr_taimur_leave", companyId: DEMO_COMPANY_ID, recipientUserId: "usr_demo_hr",
-      title: "Taimur Raza requested sick leave", body: "A one-day sick leave request is waiting for a decision.",
-      href: "/leave", read: false, createdAt: now,
-    },
-    {
-      id: "ntf_demo_hr_sarmad_leave", companyId: DEMO_COMPANY_ID, recipientUserId: "usr_demo_hr",
-      title: "Sarmad Baig requested annual leave", body: "A one-day annual leave request is waiting for a decision.",
-      href: "/leave", read: false, createdAt: now,
-    },
+    notification({ id: "ntf_demo_admin_hr_leave", recipientUserId: "usr_demo_admin", title: "An HR leave request needs Admin review", body: "Iqra Javed requested annual leave. HR self-requests are reviewed by an Admin.", href: "/leave", hoursAgo: 1 }),
+    notification({ id: "ntf_demo_hr_taimur_leave", recipientUserId: "usr_demo_hr", title: "Taimur Raza requested sick leave", body: "A one-day sick leave request is waiting for a decision.", href: "/leave", hoursAgo: 1 }),
+    notification({ id: "ntf_demo_hr_sarmad_leave", recipientUserId: "usr_demo_hr", title: "Sarmad Baig requested annual leave", body: "A one-day annual leave request is waiting for a decision.", href: "/leave", hoursAgo: 3 }),
+    notification({ id: "ntf_demo_hr_ayesha_leave", recipientUserId: "usr_demo_hr", title: "Ayesha Khan requested casual leave", body: "A one-day casual leave request is waiting for a decision.", href: "/leave", hoursAgo: 4 }),
+    notification({ id: "ntf_demo_hr_correction", recipientUserId: "usr_demo_hr", title: "Attendance correction needs review", body: "Bilal Ahmed submitted a correction for a recent check-in.", href: "/attendance", hoursAgo: 5 }),
+    notification({ id: "ntf_demo_admin_payroll", recipientUserId: "usr_demo_admin", title: "November payroll draft is ready", body: "The draft for November has been prepared and is waiting for review before finalization.", href: "/payroll", hoursAgo: 6 }),
+    notification({ id: "ntf_demo_hr_payroll", recipientUserId: "usr_demo_hr", title: "November payroll draft is ready", body: "The draft for November has been prepared with 17 employees.", href: "/payroll", read: true, hoursAgo: 7 }),
+    notification({ id: "ntf_demo_employee_approved", recipientUserId: "usr_demo_employee", title: "Your casual leave was approved", body: "Your People partner approved your recent casual leave request.", href: "/leave", read: true, hoursAgo: 26 }),
+    notification({ id: "ntf_demo_employee_payslip", recipientUserId: "usr_demo_employee", title: "Your October payslip is available", body: "The October payroll has been finalized. Open Payroll to download your payslip.", href: "/payroll", hoursAgo: 30 }),
+    notification({ id: "ntf_demo_taimur_sick", recipientUserId: "usr_demo_taimur", title: "Sick leave request received", body: "Your one-day sick leave request is with the People team.", href: "/leave", read: true, hoursAgo: 28 }),
+    notification({ id: "ntf_demo_sarmad_leave", recipientUserId: "usr_demo_sarmad", title: "Annual leave request received", body: "Your annual leave request is with the People team for review.", href: "/leave", read: true, hoursAgo: 32 }),
+    notification({ id: "ntf_demo_all_enrollment", recipientUserId: "usr_demo_employee", title: "Open enrollment closes 27 November", body: "Review your benefits choices before the deadline.", href: "/announcements", hoursAgo: 48 }),
+    notification({ id: "ntf_demo_admin_enrollment", recipientUserId: "usr_demo_admin", title: "Open enrollment closes 27 November", body: "Three team members have not yet reviewed their benefits choices.", href: "/announcements", read: true, hoursAgo: 52 }),
+    notification({ id: "ntf_demo_hr_enrollment", recipientUserId: "usr_demo_hr", title: "Open enrollment closes 27 November", body: "Three team members have not yet reviewed their benefits choices.", href: "/announcements", read: true, hoursAgo: 53 }),
+    notification({ id: "ntf_demo_hr_lift", recipientUserId: "usr_demo_hr", title: "Lift maintenance on 18 November", body: "Share the service notice with anyone visiting the Karachi office.", href: "/announcements", read: true, hoursAgo: 80 }),
   ];
 
   const corrections = [];
-  const recentCorrectionDate = pastWorkdays.at(-1);
   const bilalAccount = employees.find((item) => item.id === "emp_demo_1002");
-  if (recentCorrectionDate) corrections.push({
-    id: "cor_demo_pending", companyId: DEMO_COMPANY_ID, employeeId: bilalAccount.id,
-    employeeName: bilalAccount.name, employeeCode: bilalAccount.employeeCode, workDate: recentCorrectionDate,
-    before: { checkInAt: new Date(`${recentCorrectionDate}T04:42:00.000Z`).toISOString(), checkOutAt: new Date(`${recentCorrectionDate}T12:00:00.000Z`).toISOString() },
-    after: { checkInAt: new Date(`${recentCorrectionDate}T04:20:00.000Z`).toISOString(), checkOutAt: new Date(`${recentCorrectionDate}T12:00:00.000Z`).toISOString() },
-    reason: "I arrived before the door scanner recorded my check-in.", status: "pending", createdAt: now,
+  const daniyalAccount = employees.find((item) => item.id === "emp_demo_1008");
+  const recentCorrectionDate = pastWorkdays.at(-1);
+  const approvedCorrectionDate = pastWorkdays[0];
+  const rejectedCorrectionDate = workDates.filter((date) => date < today).slice(-6)[0];
+  const correction = ({ id, person, workDate, beforeIn, afterIn, reason, status, decidedBy, comment, daysAgo }) => ({
+    id, companyId: DEMO_COMPANY_ID, employeeId: person.id, employeeName: person.name, employeeCode: person.employeeCode,
+    attendanceId: `att_demo_${person.id}_${workDate}`, workDate,
+    before: { checkInAt: new Date(`${workDate}T${beforeIn}:00.000Z`).toISOString(), checkOutAt: new Date(`${workDate}T12:00:00.000Z`).toISOString() },
+    after: { checkInAt: new Date(`${workDate}T${afterIn}:00.000Z`).toISOString(), checkOutAt: new Date(`${workDate}T12:00:00.000Z`).toISOString() },
+    reason, status, requestedBy: person.userId ?? "usr_demo_hr",
+    ...(status !== "pending" ? { decidedBy, comment, decidedAt: new Date(now.getTime() - (daysAgo - 1) * 86_400_000) } : {}),
+    createdAt: new Date(now.getTime() - daysAgo * 86_400_000),
   });
+  if (recentCorrectionDate) corrections.push(correction({
+    id: "cor_demo_pending", person: bilalAccount, workDate: recentCorrectionDate,
+    beforeIn: "04:42", afterIn: "04:20", status: "pending", daysAgo: 0,
+    reason: "I arrived before the door scanner recorded my check-in; the building reception can confirm the time.",
+  }));
+  if (approvedCorrectionDate) corrections.push(correction({
+    id: "cor_demo_approved", person: employeeAccount, workDate: approvedCorrectionDate,
+    beforeIn: "04:52", afterIn: "04:10", status: "approved", decidedBy: "usr_demo_hr", daysAgo: 6,
+    comment: "Reception confirmed the earlier arrival. Attendance has been updated.",
+    reason: "The client call started at 9am and I was at my desk before the scanner came online.",
+  }));
+  if (rejectedCorrectionDate) corrections.push(correction({
+    id: "cor_demo_rejected", person: daniyalAccount, workDate: rejectedCorrectionDate,
+    beforeIn: "05:38", afterIn: "04:25", status: "rejected", decidedBy: "usr_demo_hr", daysAgo: 8,
+    comment: "The desk booking and support queue both show the later start. Please ask me to adjust if you have other evidence.",
+    reason: "I believe my check-in should be earlier because I joined the morning handover from home.",
+  }));
+  const approvedCorrection = corrections.find((item) => item.status === "approved");
+  if (approvedCorrection) {
+    const record = attendance.find((item) => item.id === approvedCorrection.attendanceId);
+    if (record) {
+      record.checkInAt = new Date(approvedCorrection.after.checkInAt);
+      record.status = "present";
+      record.late = false;
+      record.workedSeconds = 28_800;
+    }
+  }
 
-  const holidays = [
-    { id: "hol_demo_oct", companyId: DEMO_COMPANY_ID, date: `${currentPeriod}-27`, name: "Team learning afternoon" },
-    { id: "hol_demo_dec", companyId: DEMO_COMPANY_ID, date: `${today.slice(0, 4)}-12-25`, name: "Winter office closure" },
-  ];
-
+  const approvedLeaveDateKeys = new Set(leaveRequests
+    .filter((leave) => leave.status === "approved")
+    .flatMap((leave) => leave.dates.map((date) => `${leave.employeeId}|${date}`)));
   const makePayroll = (period, status) => {
     const bounds = monthBounds(period);
-    const workdays = datesBetween(bounds.start, bounds.end).filter(isWorkday);
+    const workdays = datesBetween(bounds.start, bounds.end).filter((date) => isWorkday(date) && !holidayDates.has(date));
     const entries = employees.filter((person) => person.status !== "exited").flatMap((person) => {
       const employed = workdays.filter((date) => date >= person.joiningDate);
       if (!employed.length) return [];
       const personalAttendance = attendance.filter((item) => item.employeeId === person.id && item.workDate >= bounds.start && item.workDate <= bounds.end);
-      const absentDays = Math.max(0, employed.length - personalAttendance.length);
+      const elapsedDays = employed.filter((date) => date <= today && !approvedLeaveDateKeys.has(`${person.id}|${date}`));
+      const elapsedAttendance = personalAttendance.filter((item) => item.workDate <= today);
+      const absentDays = Math.max(0, elapsedDays.length - elapsedAttendance.length);
       const halfDays = personalAttendance.filter((item) => item.status === "half_day").length;
       const basicPaisa = person.basicPaisa;
       const hraPaisa = Math.round(basicPaisa * 0.4);
@@ -349,17 +421,43 @@ try {
       ...(status === "finalized" ? { finalizedAt: new Date(`${bounds.end}T12:00:00.000Z`) } : {}),
     };
   };
-  const payrollRuns = [makePayroll(finalizedPeriod, "finalized"), makePayroll(currentPeriod, "draft")];
+  const payrollRuns = [
+    ...finalizedPeriods.map((period) => makePayroll(period, "finalized")),
+    makePayroll(currentPeriod, "draft"),
+  ];
 
   const admin = users[0];
+  const hrUser = users.find((user) => user.id === "usr_demo_hr");
+  const audit = ({ id, action, entity, entityId, before = null, after = null, actor = admin, daysAgo = 0, hoursAgo = 0 }) => ({
+    id, companyId: DEMO_COMPANY_ID, actorUserId: actor.id, actorEmail: actor.email, actorRole: actor.role,
+    action, entity, entityId, before, after,
+    createdAt: new Date(now.getTime() - daysAgo * 86_400_000 - hoursAgo * 3_600_000),
+  });
   const auditLogs = [
-    ["aud_demo_setup", "setup.initialize", "company", DEMO_COMPANY_ID, { name: company.name }, new Date(now.getTime() - 30 * 86_400_000)],
-    ["aud_demo_people", "employee.import", "employee", employees[0].id, { importedCount: employees.length }, new Date(now.getTime() - 12 * 86_400_000)],
-    ["aud_demo_payroll", "payroll.finalize", "payrollRun", `pay_demo_${finalizedPeriod}`, { period: finalizedPeriod }, new Date(now.getTime() - 4 * 86_400_000)],
-  ].map(([id, action, entity, entityId, after, logDate]) => ({
-    id, companyId: DEMO_COMPANY_ID, actorUserId: admin.id, actorEmail: admin.email, actorRole: admin.role,
-    action, entity, entityId, before: null, after, createdAt: logDate,
-  }));
+    audit({ id: "aud_demo_setup", action: "setup.initialize", entity: "company", entityId: DEMO_COMPANY_ID, after: { name: company.name, timezone: company.timezone }, daysAgo: 240 }),
+    audit({ id: "aud_demo_people", action: "employee.import", entity: "employee", entityId: employees[0].id, after: { importedCount: employees.length, source: "HR onboarding pack" }, daysAgo: 90 }),
+    audit({ id: "aud_demo_role_hr", action: "user.role.change", entity: "user", entityId: "usr_demo_hr", before: { role: "EMPLOYEE" }, after: { role: "HR" }, daysAgo: 60 }),
+    audit({ id: "aud_demo_dept", action: "department.rename", entity: "department", entityId: "dept_demo_product", before: { name: "Product" }, after: { name: "Product & Engineering" }, actor: hrUser, daysAgo: 45 }),
+    audit({ id: "aud_demo_designation", action: "designation.rename", entity: "designation", entityId: "des_demo_engineer", before: { name: "Engineer" }, after: { name: "Software Engineer" }, actor: hrUser, daysAgo: 44 }),
+    audit({ id: "aud_demo_leave_policy", action: "leave_type.update", entity: "leaveType", entityId: "lt_demo_annual", before: { name: "Annual leave", yearlyQuota: 12, active: true }, after: { yearlyQuota: 14 }, actor: hrUser, daysAgo: 38 }),
+    audit({ id: "aud_demo_holiday", action: "holiday.update", entity: "holiday", entityId: "hol_demo_eid_adha", before: { date: null, name: null }, after: { date: holidays[4].date, name: holidays[4].name }, actor: hrUser, daysAgo: 34 }),
+    audit({ id: "aud_demo_noor", action: "employee.update", entity: "employee", entityId: "emp_demo_1015", before: { status: "probation" }, after: { status: "probation", phone: "+92 300 555 1015", address: "DHA, Lahore" }, actor: hrUser, daysAgo: 20 }),
+    audit({ id: "aud_demo_rayan_salary", action: "employee.salary.update", entity: "salaryStructure", entityId: "sal_demo_emp_demo_1013", before: { basicPaisa: 38000000 }, after: { basicPaisa: 41000000, effectiveFrom: `${currentYear}-07-01` }, actor: hrUser, daysAgo: 17 }),
+    ...finalizedPeriods.slice(-4).map((period, index) => audit({
+      id: `aud_demo_payroll_${period}`, action: "payroll.finalize", entity: "payrollRun", entityId: `pay_demo_${period}`,
+      before: { status: "draft" }, after: { status: "finalized", period, employeeCount: employees.length },
+      actor: index % 2 === 0 ? admin : hrUser, daysAgo: 3 + index * 3,
+    })),
+    audit({ id: "aud_demo_payroll_draft", action: "payroll.draft.create", entity: "payrollRun", entityId: `pay_demo_${currentPeriod}`, after: { period: currentPeriod, employeeCount: employees.length }, actor: hrUser, hoursAgo: 6 }),
+    audit({ id: "aud_demo_leave_approved", action: "leave.approve", entity: "leaveRequest", entityId: "lev_demo_today", before: { status: "pending" }, after: { status: "approved", employee: meherAccount.name }, daysAgo: 4 }),
+    audit({ id: "aud_demo_leave_approved_2", action: "leave.approve", entity: "leaveRequest", entityId: "lev_demo_approved_2", before: { status: "pending" }, after: { status: "approved", employee: hamzaAccount.name }, daysAgo: 9 }),
+    audit({ id: "aud_demo_correction_request", action: "attendance.correction.request", entity: "attendanceCorrection", entityId: "cor_demo_pending", after: { workDate: recentCorrectionDate, reason: "Door scanner missed the check-in." }, actor: { id: "usr_demo_bilal", email: bilalAccount.email, role: "EMPLOYEE" }, hoursAgo: 5 }),
+    audit({ id: "aud_demo_correction", action: "attendance.correction.approve", entity: "attendanceCorrection", entityId: "cor_demo_approved", before: { checkInAt: corrections.find((item) => item.id === "cor_demo_approved")?.before?.checkInAt ?? null }, after: { status: "approved" }, daysAgo: 6 }),
+    audit({ id: "aud_demo_correction_rejected", action: "attendance.correction.reject", entity: "attendanceCorrection", entityId: "cor_demo_rejected", after: { status: "rejected" }, daysAgo: 8 }),
+    audit({ id: "aud_demo_announcement", action: "announcement.create", entity: "announcement", entityId: "ann_demo_planning", after: { title: "Quarterly planning week begins Monday" }, hoursAgo: 2 }),
+    audit({ id: "aud_demo_announcement_enrollment", action: "announcement.create", entity: "announcement", entityId: "ann_demo_enrollment", after: { title: "Open enrollment closes on 27 November" }, actor: hrUser, daysAgo: 5 }),
+    audit({ id: "aud_demo_password", action: "user.password.change", entity: "user", entityId: admin.id, daysAgo: 41 }),
+  ];
 
   const collectionsToSeed = [
     ["users", users], ["departments", departments.map((item) => ({ ...item, companyId: DEMO_COMPANY_ID, createdAt: now }))],

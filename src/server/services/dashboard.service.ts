@@ -43,7 +43,18 @@ export async function getDashboard(actor: SessionUser, input: { start?: string; 
   const employeeIds = new Set(allEmployees.map((employee) => String(employee.id)));
   const scopedAttendance = attendanceRows.filter((row) => employeeIds.has(String(row.employeeId)));
   const scopedLeaves = leaveRows.filter((leave) => employeeIds.has(String(leave.employeeId)));
-  const todayAttendance = scopedAttendance.filter((row) => row.workDate === snapshotDate);
+  // Approved leave wins over any punch that may have been recorded before the
+  // decision. Counting both would push attendance above 100% and double-count
+  // leave days in attendance, payroll, and absenteeism metrics.
+  const approvedLeaveKeys = new Set<string>();
+  for (const leave of scopedLeaves) {
+    const dates = Array.isArray(leave.dates) ? leave.dates.map(String) : [];
+    for (const date of dates) {
+      if (date >= start && date <= end) approvedLeaveKeys.add(`${String(leave.employeeId)}|${date}`);
+    }
+  }
+  const effectiveAttendance = scopedAttendance.filter((row) => !approvedLeaveKeys.has(`${String(row.employeeId)}|${String(row.workDate)}`));
+  const todayAttendance = effectiveAttendance.filter((row) => row.workDate === snapshotDate);
   const todayLeaves = scopedLeaves.filter((leave) => {
     const dates = Array.isArray(leave.dates) ? leave.dates.map(String) : [];
     return dates.length ? dates.includes(snapshotDate) : String(leave.startDate) <= snapshotDate && String(leave.endDate) >= snapshotDate;
@@ -61,18 +72,12 @@ export async function getDashboard(actor: SessionUser, input: { start?: string; 
     const exited = employee.exitDate ? String(employee.exitDate) : end;
     return sum + rangeWorkdays.filter((date) => date >= joined && date <= exited).length;
   }, 0);
-  const approvedLeaveDays = scopedLeaves.reduce((sum, leave) => {
-    const dates = Array.isArray(leave.dates) ? leave.dates : [];
-    const count = dates.length
-      ? dates.filter((date) => String(date) >= start && String(date) <= end).length
-      : Number(leave.days ?? 0);
-    return sum + count;
-  }, 0);
-  const halfDays = scopedAttendance.filter((row) => row.status === "half_day").length;
-  const presentCount = scopedAttendance.filter((row) => row.status === "present").length;
-  const lateStatusCount = scopedAttendance.filter((row) => row.status === "late").length;
-  const missingCheckoutCount = scopedAttendance.filter((row) => row.missingCheckout === true).length;
-  const absentCount = Math.max(0, expectedWorkDays - scopedAttendance.length - approvedLeaveDays);
+  const approvedLeaveDays = approvedLeaveKeys.size;
+  const halfDays = effectiveAttendance.filter((row) => row.status === "half_day").length;
+  const presentCount = effectiveAttendance.filter((row) => row.status === "present").length;
+  const lateStatusCount = effectiveAttendance.filter((row) => row.status === "late").length;
+  const missingCheckoutCount = effectiveAttendance.filter((row) => row.missingCheckout === true).length;
+  const absentCount = Math.max(0, expectedWorkDays - effectiveAttendance.length - approvedLeaveDays);
   const month = today.slice(0, 7);
   const finalizedPayroll = actor.role === "ADMIN"
     ? await db.payrollRuns.findOne({ companyId: actor.companyId, period: month, status: "finalized" })
@@ -92,7 +97,7 @@ export async function getDashboard(actor: SessionUser, input: { start?: string; 
     tenureCounts.set(bucket, (tenureCounts.get(bucket) ?? 0) + 1);
   }
   const lateCounts = new Map<string, number>();
-  for (const row of scopedAttendance) {
+  for (const row of effectiveAttendance) {
     if (row.late === true && employeeById.has(String(row.employeeId))) {
       const id = String(row.employeeId);
       lateCounts.set(id, (lateCounts.get(id) ?? 0) + 1);
@@ -156,7 +161,7 @@ export async function getDashboard(actor: SessionUser, input: { start?: string; 
   const lastSeven = eachIsoDate(trendStart, trendEnd);
   const trend = lastSeven.map((date) => ({
     label: dayLabel(date),
-    value: scopedAttendance.filter((row) => row.workDate === date && ["present", "late", "missing_checkout"].includes(String(row.status))).length,
+    value: effectiveAttendance.filter((row) => row.workDate === date && ["present", "late", "missing_checkout"].includes(String(row.status))).length,
   }));
   const audit = actor.role === "ADMIN"
     ? await db.auditLogs.find({ companyId: actor.companyId }, { projection: { _id: 0, id: 1, action: 1, entity: 1, actorEmail: 1, createdAt: 1 } }).sort({ createdAt: -1 }).limit(8).toArray()
@@ -221,7 +226,9 @@ async function adminKpis(
   const exits = allEmployees.filter((employee) => employee.status === "exited" && String(employee.exitDate ?? "") >= start && String(employee.exitDate ?? "") <= end).length;
   const startCount = allEmployees.filter((employee) => ["active", "probation"].includes(String(employee.status)) && String(employee.joiningDate) <= start && (!employee.exitDate || String(employee.exitDate) >= start)).length;
   const endCount = activeEmployees.length;
-  const finalizedRuns = await db.payrollRuns.find({ companyId: _actor.companyId, status: "finalized", period: { $gte: `${year}-01`, $lte: `${year}-12` } }, { projection: { _id: 0, totals: 1 } }).toArray();
+  const finalizedRuns = await db.payrollRuns.find({ companyId: _actor.companyId, status: "finalized", period: { $gte: `${year}-01`, $lte: `${year}-12` } }, { projection: { _id: 0, period: 1, totals: 1 } }).toArray();
+  const latestFinalized = payroll ?? finalizedRuns.sort((left, right) => String(right.period).localeCompare(String(left.period)))[0] ?? null;
+  const latestPeriod = latestFinalized ? String(latestFinalized.period) : null;
   const yearPayroll = finalizedRuns.reduce((sum, run) => sum + Number((run.totals as Record<string, unknown> | undefined)?.grossPayablePaisa ?? 0), 0);
   const averageSalary = activeEmployees.length
     ? activeEmployees.reduce((sum, employee) => sum + Number(employee.basicPaisa ?? 0) * 1.5, 0) / activeEmployees.length
@@ -235,7 +242,7 @@ async function adminKpis(
   return [
     { label: "Headcount", value: activeEmployees.length, note: "Active and probation" },
     { label: "Attrition", value: attrition(exits, startCount, endCount) === null ? "N/A" : `${attrition(exits, startCount, endCount)?.toFixed(1)}%`, note: `${exits} exits in range` },
-    { label: "Payroll cost", value: payroll ? formatPkr(Number((payroll.totals as Record<string, unknown> | undefined)?.grossPayablePaisa ?? 0)) : "—", note: "Current month, finalized only" },
+    { label: "Payroll cost", value: latestFinalized ? formatPkr(Number((latestFinalized.totals as Record<string, unknown> | undefined)?.grossPayablePaisa ?? 0)) : "—", note: latestPeriod ? `${latestPeriod} · finalized` : "No finalized payroll yet" },
     { label: "Average gross", value: averageSalary === null ? "N/A" : formatPkr(averageSalary), note: `By active headcount · ${deptText}` },
     { label: "YTD payroll", value: yearPayroll ? formatPkr(yearPayroll) : "—", note: "Finalized payroll records" },
   ];
