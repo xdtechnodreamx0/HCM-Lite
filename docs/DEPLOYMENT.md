@@ -1,6 +1,6 @@
 # Vercel deployment
 
-The source is in the [public GitHub repository](https://github.com/xdtechnodreamx0/HCM-Lite). Release commit `1a10a8c` passed GitHub Actions CI run `43261118969` (install, lint, typecheck, 66 tests, build), and Vercel deployed it to the production alias. A provider status confirms the deployment job finished; it does not confirm that the production database, sign-in, email, or AI integrations work. Verify those at the current Vercel project URL. Production SMTP delivery was separately verified by requesting a password reset for the workspace Admin and confirming the message arrived from the configured Gmail sender.
+The source is in the [public GitHub repository](https://github.com/xdtechnodreamx0/HCM-Lite). Release commit `6b1c7ca` passed GitHub Actions CI run `43574609203` (install, lint, typecheck, 66 tests, build), and Vercel deployed it to the production alias as `dpl_CgRkeDNUnk8b553pPdV2RxxuHkos`. A provider status confirms the deployment job finished; it does not confirm that the production database, sign-in, email, or AI integrations work. Verify those at the current Vercel project URL. Production SMTP delivery was separately verified by requesting a password reset for the workspace Admin and confirming the message arrived from the configured Gmail sender. The authenticated demo sweep and payroll/payslip checks ran on an SSO-protected production-target deployment pointed at the isolated `hcm_lite_demo` database; that temporary deployment was removed after verification.
 
 ## Required Vercel variables
 
@@ -41,14 +41,15 @@ If a first-run or sign-in request returns `403 Invalid request origin.`, confirm
 4. Sign in, then check the AI panel. It needs `GEMINI_API_KEY`; the app reports its disabled state when no key is configured.
 5. Create an HR login and link it to a staff profile in **User access** if HR should use its own check-in, leave, and payslip. Confirm the employee directory stays read-only for Admin and manageable for HR.
 6. If geofenced check-in is required, set office latitude/longitude and a radius in **Organization**. Check-in will then request browser location; the server decides using the Haversine distance and GPS accuracy. The demo company intentionally leaves these coordinates unset.
-7. Signup verification and password-reset emails need both Resend variables and a verified sender domain. Until configured, the app does not claim that an email was sent.
+7. Signup verification and password-reset emails work through SMTP when `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, and `EMAIL_FROM` are set. Until a provider is fully configured, the app does not claim that an email was sent. Resend remains an alternative once a sending domain is verified.
 
 ## Database and demo safety
 
 - Use a dedicated production database user with only the permissions the app needs. Configure Atlas network access with a supported, restricted egress setup; do not expose the database broadly.
 - Keep local fictional demo accounts (`admin@northstar.demo`, `hr@northstar.demo`, `employee@northstar.demo`, `taimur@northstar.demo`, `sarmad@northstar.demo`, password `12345`) on the loopback-only demo service. Never load them into a public production database.
 - The demo HR account is linked to the fictional Iqra Javed staff profile and has a seeded pending self-request for Admin review. This demonstrates HR self-service and segregation of duties; do not copy that stance to production without a deliberate policy decision.
-- The demo launcher (`/demo`), one-click login, and customer portal (`/customer`) are gated by `DEMO_MODE=true` and seeded demo accounts. Treat the demo as an explicitly fake workspace; keep it on port 3001 and never expose it through a public alias or enable `DEMO_MODE` in production.
+- The demo launcher (`/demo`), one-click login, and the seeded customer portal are gated by `DEMO_MODE=true` and seeded demo accounts. Outside demo mode, `/customer` serves a fixed fictional Northstar Studio snapshot so the public customer experience still works without exposing a database. Treat the seeded demo as an explicitly fake workspace; never load its accounts into a public production database.
+- Demo verification can use a production-target deployment with `--skip-domain`, `DEMO_MODE=true`, and `MONGODB_DB=hcm_lite_demo`. It must stay behind SSO deployment protection, must never receive the production alias, and should be removed after verification. Never point a demo deployment at the production database.
 - Use a separate empty database for previews and manual setup checks. Do not reset or seed a database containing real records.
 - Rotate database, session, Gemini, and Resend secrets through their providers if exposed. Changing `SESSION_SECRET` signs out existing users.
 - Review database backup/restore support and external AI quotas before relying on those services.
