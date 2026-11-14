@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRequire } from "node:module";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { AppError } from "@/lib/errors";
 import { createId } from "@/lib/ids";
 import { formatPkr } from "@/lib/currency";
@@ -11,22 +11,6 @@ import { getCalendar } from "@/server/services/organization.service";
 import { notifyEmployees } from "@/server/services/notifications.service";
 import { writeAudit } from "@/server/services/audit.service";
 import type { SessionUser } from "@/lib/types";
-
-type PdfFont = object;
-type PdfPage = {
-  drawText(text: string, options: { x: number; y: number; size: number; font: PdfFont; color: object }): void;
-  drawLine(options: { start: { x: number; y: number }; end: { x: number; y: number }; thickness: number; color: object }): void;
-};
-type PdfDocument = {
-  addPage(size: [number, number]): PdfPage;
-  embedFont(font: unknown): Promise<PdfFont>;
-  save(): Promise<Uint8Array>;
-};
-const { PDFDocument, StandardFonts, rgb } = createRequire(`${process.cwd()}/package.json`)("pdf-lib/dist/pdf-lib.js") as {
-  PDFDocument: { create(): Promise<PdfDocument> };
-  StandardFonts: { Helvetica: unknown; HelveticaBold: unknown };
-  rgb(red: number, green: number, blue: number): object;
-};
 
 const periodSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 
