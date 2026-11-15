@@ -1,6 +1,6 @@
 # Vercel deployment
 
-The source is in the [public GitHub repository](https://github.com/xdtechnodreamx0/HCM-Lite). Release commits `695ec75` and `52e9157` passed GitHub Actions CI runs `43852151391` and `43852571516` (install, lint, typecheck, 68 tests, build). Vercel deployed `52e9157` Ready as `dpl_AFY1DTxhQuAVWzVGfQPWrBvWKc5X`, and the production alias `https://hcmlite-beta.vercel.app` serves it.
+The source is in the [public GitHub repository](https://github.com/xdtechnodreamx0/HCM-Lite). Release commits `695ec75` and `52e9157` passed GitHub Actions CI runs `43852151391` and `43852571516` (install, lint, typecheck, 68 tests, build). Vercel deployed `52e9157` Ready as `dpl_AFY1DTxhQuAVWzVGfQPWrBvWKc5X`; the production alias `https://hcmlite-beta.vercel.app` later advanced through docs-only commits with no runtime change.
 
 A provider status confirms the deployment job finished; it does not confirm that the production database, sign-in, email, or AI integrations work. The 2026-11-16 release checks below covered the public boundary. Production SMTP delivery was separately verified by requesting a password reset for the workspace Admin and confirming the message arrived from the configured Gmail sender; completing that reset is still pending the owner's action. The authenticated demo sweep and payroll/payslip checks ran on an SSO-protected production-target deployment pointed at the isolated `hcm_lite_demo` database; that temporary deployment was removed after verification.
 
