@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomInt } from "node:crypto";
 import type { Document } from "mongodb";
 import nodemailer from "nodemailer";
 import { AppError } from "@/lib/errors";
-import { getEmailProvider } from "@/lib/env";
+import { getEmailProvider, isEmailConfigured } from "@/lib/env";
 import { collections } from "@/server/db/collections";
 import { hashPassword } from "@/server/auth/passwords";
 import { setSessionCookie } from "@/server/auth/sessions";
@@ -85,7 +85,7 @@ async function sendPasswordResetEmail(input: { email: string; name: string; comp
 }
 
 export async function issuePasswordResetEmail(user: { id: string; companyId: string; email: string; name: string; company: string }) {
-  if (!getEmailProvider()) return false;
+  if (!isEmailConfigured()) return false;
   await rateLimit(`password-reset:send:${user.id}`, 3, 60 * 60 * 1000);
   const token = randomBytes(32).toString("base64url");
   const db = await collections();
@@ -111,14 +111,14 @@ export async function requestPasswordReset(email: string, ip: string) {
     rateLimit(`password-reset:email:${emailHash}`, 4, 60 * 60 * 1000),
     rateLimit(`password-reset:ip:${ipHash}`, 15, 60 * 60 * 1000),
   ]);
-  const provider = getEmailProvider();
+  const provider = isEmailConfigured();
   const db = await collections();
   const user = provider ? await db.users.findOne({ email: normalizedEmail, active: true }) : null;
   if (user && !(user.emailVerificationRequired && !user.emailVerifiedAt)) {
     const company = await db.companies.findOne({ id: user.companyId }, { projection: { name: 1 } });
     await issuePasswordResetEmail({ id: user.id, companyId: user.companyId, email: user.email, name: user.name, company: String(company?.name ?? "your company") });
   }
-  return { accepted: true, emailConfigured: Boolean(provider) };
+  return { accepted: true, emailConfigured: provider };
 }
 
 export async function completePasswordReset(token: string, nextPassword: string, ip: string) {
@@ -140,7 +140,7 @@ export async function completePasswordReset(token: string, nextPassword: string,
 }
 
 export async function issueEmailVerification(user: { id: string; companyId: string; email: string; name: string; company: string }) {
-  if (!getEmailProvider()) return false;
+  if (!isEmailConfigured()) return false;
   const token = randomBytes(32).toString("base64url");
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const db = await collections();

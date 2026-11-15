@@ -12,7 +12,7 @@ import {
 import { collections } from "@/server/db/collections";
 import { rateLimit } from "@/server/security/rate-limit";
 import { writeAudit } from "@/server/services/audit.service";
-import { getEmailProvider } from "@/lib/env";
+import { isEmailConfigured } from "@/lib/env";
 import { issueEmailVerification, issuePasswordResetEmail } from "@/server/services/email.service";
 import type { Role, SessionUser } from "@/lib/types";
 
@@ -38,14 +38,14 @@ export async function requestEmployeeSignup(raw: unknown, ip: string) {
   const db = await collections();
   const company = await db.companies.findOne({ setupKey: "primary" });
   if (!company) throw new AppError(409, "The company workspace is not ready for employee sign-up yet.");
-  if (await db.users.findOne({ email: input.email }, { projection: { _id: 1 } })) return { accepted: true, emailConfigured: Boolean(getEmailProvider()) };
+  if (await db.users.findOne({ email: input.email }, { projection: { _id: 1 } })) return { accepted: true, emailConfigured: isEmailConfigured() };
   const user = {
     id: createId("usr"), companyId: String(company.id), email: input.email, name: input.name,
     role: "EMPLOYEE" as const, passwordHash: await hashPassword(input.password), active: false,
     signupPending: true, forcePasswordChange: false, sessionVersion: 1, createdAt: new Date(),
   };
   await db.users.insertOne(user);
-  const emailConfigured = Boolean(getEmailProvider());
+  const emailConfigured = isEmailConfigured();
   try {
     if (emailConfigured) {
       await issueEmailVerification({ id: user.id, companyId: user.companyId, email: user.email, name: user.name, company: String(company.name) });
@@ -137,11 +137,11 @@ export async function createLogin(input: {
   const temporaryPassword = createTemporaryPassword();
   const now = new Date();
   const id = (await import("@/lib/ids")).createId("usr");
-  const emailProvider = getEmailProvider();
   // Staff logins created by HR use a temporary password shown once. Their
   // work email does not need to be a real mailbox; the password change is the
-  // access control. Admin/HR logins can still require verification.
-  const verificationRequired = emailProvider && input.requireEmailVerification !== false;
+  // access control. Verification is opt-in, and even a broken optional email
+  // configuration must not block creating the login.
+  const verificationRequired = input.requireEmailVerification === true && isEmailConfigured();
   let linkedEmployee: Record<string, unknown> | null = null;
   if (input.employeeId) {
     linkedEmployee = await db.employees.findOne({ id: input.employeeId, companyId: input.actor.companyId });
@@ -281,8 +281,7 @@ export async function resetUserPassword(actor: SessionUser, userId: string) {
   const user = await db.users.findOne({ id: userId, companyId: actor.companyId });
   if (!user) throw new AppError(404, "User not found.");
   if (!user.active || user.signupPending) throw new AppError(422, "Link and activate this employee account before sending a password reset.");
-  const provider = getEmailProvider();
-  if (!provider) throw new AppError(503, "Password reset email is not configured. Add SMTP_HOST, SMTP_USER, SMTP_PASS, and EMAIL_FROM, or RESEND_API_KEY and EMAIL_FROM.");
+  if (!isEmailConfigured()) throw new AppError(503, "Password reset email is not configured. Add SMTP_HOST, SMTP_USER, SMTP_PASS, and EMAIL_FROM, or RESEND_API_KEY and EMAIL_FROM.");
   const company = await db.companies.findOne({ id: actor.companyId }, { projection: { name: 1 } });
   if (user.emailVerificationRequired && !user.emailVerifiedAt) {
     await issueEmailVerification({ id: user.id, companyId: actor.companyId, email: user.email, name: user.name, company: String(company?.name ?? "your company") });

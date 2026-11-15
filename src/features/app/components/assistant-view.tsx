@@ -10,7 +10,7 @@ import { FormError, PageHeading, Panel, PrimaryButton } from "@/features/app/com
 type AiReply = { available: boolean; answer?: string; toolName?: string; prefill?: { leaveTypeCode: string; startDate: string; endDate: string; reason: string }; message?: string };
 type ChatLine = { role: "user" | "assistant"; content: string; toolName?: string };
 
-export function AssistantView({ role, employeeId, dashboard, dashboardFilters, organization, company, currentPage }: {
+export function AssistantView({ role, employeeId, dashboard, dashboardFilters, organization, company, currentPage, refresh }: {
   role: NonNullable<SessionPayload["user"]>["role"];
   employeeId?: string;
   dashboard: DashboardPayload | null;
@@ -18,6 +18,7 @@ export function AssistantView({ role, employeeId, dashboard, dashboardFilters, o
   organization: OrganizationPayload | null;
   company: SessionPayload["company"];
   currentPage: string;
+  refresh: () => Promise<void>;
 }) {
   const [available, setAvailable] = useState<boolean | null>(null);
   const canSelfService = (role === "EMPLOYEE" || role === "HR") && Boolean(employeeId);
@@ -87,6 +88,7 @@ export function AssistantView({ role, employeeId, dashboard, dashboardFilters, o
     try {
       await apiRequest("/api/leaves", { method: "POST", body: jsonBody({ leaveTypeCode: String(values.get("leaveTypeCode")), startDate: String(values.get("startDate")), endDate: String(values.get("endDate")), reason: String(values.get("reason")) }) });
       setLeaveSaved(true); setSmartPrefill(undefined); setSmartText("");
+      await refresh();
     } catch (reason) { setError(apiMessage(reason)); }
     finally { setSmartLoading(false); }
   }

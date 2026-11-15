@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getEmailProvider } from "@/lib/env";
+import { getEmailProvider, isEmailConfigured } from "@/lib/env";
 
 const KEYS = [
   "MONGODB_URI", "SESSION_SECRET", "MONGODB_DB", "APP_BASE_URL",
@@ -70,5 +70,18 @@ describe("email provider selection", () => {
     configureSmtp();
     process.env.EMAIL_PROVIDER = "carrier-pigeon";
     expect(() => getEmailProvider()).toThrow(/EMAIL_PROVIDER/);
+  });
+
+  it("reports disabled instead of throwing when SMTP is forced but EMAIL_FROM is blank", () => {
+    configureSmtp();
+    process.env.EMAIL_PROVIDER = "smtp";
+    process.env.EMAIL_FROM = "";
+    expect(() => getEmailProvider()).toThrow(/SMTP_HOST/);
+    expect(isEmailConfigured()).toBe(false);
+  });
+
+  it("reports configured when a complete provider exists", () => {
+    configureSmtp();
+    expect(isEmailConfigured()).toBe(true);
   });
 });

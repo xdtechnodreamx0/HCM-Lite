@@ -104,7 +104,7 @@ export function AttendanceView({ attendance, corrections, organization, company,
         checkOutAt: checkOut ? new Date(`${selectedDate}T${checkOut}:00`).toISOString() : undefined,
         reason: String(values.get("reason")),
       }) });
-      setShowCorrection(false); form.reset(); await refresh(); notify("Correction request sent to HR.");
+      setShowCorrection(false); form.reset(); await refresh(); notify(role === "HR" ? "Correction request sent to Admin." : "Correction request sent to HR.");
     } catch (reason) { setError(apiMessage(reason)); }
     finally { setBusy(false); }
   }
@@ -129,6 +129,9 @@ export function AttendanceView({ attendance, corrections, organization, company,
           <div className="checkin-actions">{!hasCheckedIn ? <PrimaryButton disabled={busy} onClick={() => void attendanceAction("check-in")}><LogIn size={16} /> Check in</PrimaryButton> : !hasCheckedOut ? <PrimaryButton disabled={busy} onClick={() => void attendanceAction("check-out")}><LogOut size={16} /> Check out</PrimaryButton> : <StatusPill value={todayRecord?.status ?? "present"} />}</div>
         </div>{locationNote && <p className="location-note"><MapPin size={13} /> {locationNote}</p>}<FormError>{error}</FormError>
       </Panel>
+      {isEmployee && <Panel title="My correction requests" subtitle="Requests you have sent to HR, with their latest status." className="correction-panel">
+        {corrections.length ? <div className="correction-list">{corrections.slice(0, 8).map((item) => <div className="correction-row" key={item.id}><span className="correction-icon"><RotateCcw size={16} /></span><div><strong>{formatDate(item.workDate)} · {item.reason}</strong><small>Requested {formatTime(item.after.checkInAt)} – {formatTime(item.after.checkOutAt)}</small>{item.comment && <small>Decision note: {item.comment}</small>}</div><StatusPill value={item.status} /></div>)}</div> : <EmptyState title="No correction requests" description="Use Request correction on a day in your history and the request will appear here." icon={RotateCcw} />}
+      </Panel>}
       <Panel title={isEmployee ? "Your history" : "My attendance history"} subtitle="Recent attendance records, from newest to oldest." className="table-panel">
         {loadingSelf ? <div className="loading-line">Loading your attendance…</div> : selfRows.length ? <div className="table-scroll"><table className="data-table"><thead><tr><th>DATE</th><th>CHECK IN</th><th>CHECK OUT</th><th>HOURS</th><th>STATUS</th><th /></tr></thead><tbody>{selfRows.map((item) => <tr key={item.id ?? item.workDate}><td>{formatDate(item.workDate)}</td><td>{formatTime(item.checkInAt)}</td><td>{formatTime(item.checkOutAt)}</td><td>{(item.workedSeconds / 3600).toFixed(1)} h</td><td><StatusPill value={item.status} /></td><td>{item.workDate && <button className="button button-quiet button-small" onClick={() => { setSelectedDate(item.workDate ?? ""); setShowCorrection(true); }}>Request correction</button>}</td></tr>)}</tbody></table></div> : <EmptyState title="No attendance yet" description="Your first check-in will create an attendance record here." icon={Activity} />}
       </Panel>

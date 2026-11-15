@@ -14,6 +14,8 @@ export async function POST(request: Request) {
       role: z.enum(["HR", "ADMIN"]).default("HR"),
       employeeId: z.string().min(1).max(100).optional(),
     }).strict().parse(await readJson<unknown>(currentRequest));
-    return json(await createLogin({ actor, ...input }), 201);
+    // Staff logins are handed a one-time password that the Admin shares
+    // privately. They must not depend on deliverability of the work mailbox.
+    return json(await createLogin({ actor, ...input, requireEmailVerification: false }), 201);
   });
 }

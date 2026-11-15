@@ -66,7 +66,7 @@ export function PortalView({ view, user, company, data, refresh, notify, goTo, p
     case "audit":
       return <AuditView rows={data.audit} />;
     case "assistant":
-      return <AssistantView role={user.role} employeeId={user.employeeId} dashboard={data.dashboard} dashboardFilters={dashboardFilters} organization={data.organization} company={company} currentPage={assistantContext ?? "overview"} />;
+      return <AssistantView role={user.role} employeeId={user.employeeId} dashboard={data.dashboard} dashboardFilters={dashboardFilters} organization={data.organization} company={company} currentPage={assistantContext ?? "overview"} refresh={refresh} />;
     case "profile":
       return <ProfileView employee={data.employees[0]} companyName={company?.name ?? ""} refresh={refresh} notify={notify} />;
     default:

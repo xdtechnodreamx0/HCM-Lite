@@ -30,8 +30,14 @@ services:
       MONGODB_DB: hcm_lite_demo
       SESSION_SECRET: local-demo-only-change-before-deploy-1234567890
       APP_BASE_URL: http://localhost:3001
+      EMAIL_PROVIDER: ""
       RESEND_API_KEY: ""
       EMAIL_FROM: ""
+      SMTP_HOST: ""
+      SMTP_PORT: ""
+      SMTP_SECURE: ""
+      SMTP_USER: ""
+      SMTP_PASS: ""
       DEMO_MODE: "true"
     ports:
       - "127.0.0.1:3001:3000"
