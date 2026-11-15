@@ -1,10 +1,24 @@
 # Vercel deployment
 
-The source is in the [public GitHub repository](https://github.com/xdtechnodreamx0/HCM-Lite). Release commit `6b1c7ca` passed GitHub Actions CI run `43574609203` (install, lint, typecheck, 66 tests, build), and Vercel deployed it Ready as `dpl_CgRkeDNUnk8b553pPdV2RxxuHkos`; the production alias later advanced through docs-only commits with no runtime change. A provider status confirms the deployment job finished; it does not confirm that the production database, sign-in, email, or AI integrations work. Verify those at the current Vercel project URL. Production SMTP delivery was separately verified by requesting a password reset for the workspace Admin and confirming the message arrived from the configured Gmail sender. The authenticated demo sweep and payroll/payslip checks ran on an SSO-protected production-target deployment pointed at the isolated `hcm_lite_demo` database; that temporary deployment was removed after verification.
+The source is in the [public GitHub repository](https://github.com/xdtechnodreamx0/HCM-Lite). Release commits `695ec75` and `52e9157` passed GitHub Actions CI runs `43852151391` and `43852571516` (install, lint, typecheck, 68 tests, build). Vercel deployed `52e9157` Ready as `dpl_AFY1DTxhQuAVWzVGfQPWrBvWKc5X`, and the production alias `https://hcmlite-beta.vercel.app` serves it.
+
+A provider status confirms the deployment job finished; it does not confirm that the production database, sign-in, email, or AI integrations work. The 2026-11-16 release checks below covered the public boundary. Production SMTP delivery was separately verified by requesting a password reset for the workspace Admin and confirming the message arrived from the configured Gmail sender; completing that reset is still pending the owner's action. The authenticated demo sweep and payroll/payslip checks ran on an SSO-protected production-target deployment pointed at the isolated `hcm_lite_demo` database; that temporary deployment was removed after verification.
+
+## Release verification (2026-11-16)
+
+- `https://hcmlite-beta.vercel.app/api/health` returned `200 {"status":"ok"}`.
+- `/api/session` returned `initialized:true`, `demoMode:false`, `emailConfigured:true`, and no signed-in user.
+- Nine public pages returned 200: `/`, `/login`, `/demo`, `/signup`, `/signup/company`, `/forgot-password`, invalid reset link, invalid verification link, and `/customer`.
+- Seven unauthenticated staff APIs returned 401, including `/api/payroll/2026-10/payslip` (401 rather than 500, proving the function bundle and `pdf-lib` import load).
+- A cross-site login returned 403 `Invalid request origin.` and a missing origin returned 403 `Request origin is required.`
+- Invalid reset and verification tokens returned the specific 400 messages for an expired link.
+- `/api/demo/accounts` returned `enabled:false`.
+- Security headers: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), geolocation=(self), microphone=()`, `Cross-Origin-Opener-Policy: same-origin`, and HSTS. CSP is still not set.
+- Vercel's runtime-error query reported no runtime errors in the selected window. Hobby-plan runtime log retention did not return per-request function lines.
 
 ## Required Vercel variables
 
-In Vercel, open the `hcm_lite` project’s **Settings → Environment Variables**. Add these values for **Production** (and Preview if you want preview deployments to use a separate database):
+In Vercel, open the `hcm_lite` project's **Settings -> Environment Variables**. Add these values for **Production** (and Preview if you want preview deployments to use a separate database):
 
 | Name | Value |
 |---|---|
@@ -31,7 +45,7 @@ To generate a session secret locally in PowerShell, run:
 
 Never paste a database URI, API key, or session secret into GitHub, source files, or a chat. When changing environment variables, trigger a new deployment so the running functions receive them.
 
-If a first-run or sign-in request returns `403 Invalid request origin.`, confirm the public alias is serving the latest deployment. The server compares the browser's `Origin` header with the request's forwarded host and with `APP_BASE_URL`; a deployment that predates that behavior only checked `APP_BASE_URL`, so a stale `http://localhost:3000` value blocked every production mutation. Promoting the latest `main` build fixes it even before the environment variable is corrected.
+If a first-run or sign-in request returns `403 Invalid request origin.`, confirm the public alias is serving the latest deployment. The server compares the browser's `Origin` header with the request's forwarded host and with `APP_BASE_URL`; a stale `http://localhost:3000` value can block every production mutation until the latest build is promoted.
 
 ## Verify the published app
 
@@ -39,7 +53,7 @@ If a first-run or sign-in request returns `403 Invalid request origin.`, confirm
 2. Open `https://YOUR-VERCEL-DOMAIN/api/health`. It should return `{"status":"ok"}`; a failure means the production database connection or required settings still need attention.
 3. Open the site and complete the first Admin setup only if the production database is empty. Do not use the demo password or rerun setup against a database that already has company data.
 4. Sign in, then check the AI panel. It needs `GEMINI_API_KEY`; the app reports its disabled state when no key is configured.
-5. Create an HR login and link it to a staff profile in **User access** if HR should use its own check-in, leave, and payslip. Confirm the employee directory stays read-only for Admin and manageable for HR.
+5. Create an HR login and link it to a staff profile in **User access** if HR should use its own check-in, leave, and payslip. Confirm the employee directory stays read-only for Admin and manageable for HR. Admin-created staff logins receive a one-time temporary password and do not depend on email delivery.
 6. If geofenced check-in is required, set office latitude/longitude and a radius in **Organization**. Check-in will then request browser location; the server decides using the Haversine distance and GPS accuracy. The demo company intentionally leaves these coordinates unset.
 7. Signup verification and password-reset emails work through SMTP when `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, and `EMAIL_FROM` are set. Until a provider is fully configured, the app does not claim that an email was sent. Resend remains an alternative once a sending domain is verified.
 
@@ -56,4 +70,4 @@ If a first-run or sign-in request returns `403 Invalid request origin.`, confirm
 
 ## Local production container
 
-The multi-stage `Dockerfile` builds Next.js standalone output and runs as an unprivileged user on port 3000. Docker Compose binds the app and MongoDB ports to loopback. For local startup and the isolated demo, follow the commands in the [README](../README.md).
+The multi-stage `Dockerfile` builds Next.js standalone output and runs as an unprivileged user on port 3000. Docker Compose binds the app and MongoDB ports to loopback. The demo profile blanks all email-provider variables so a local demo never claims email was sent. For local startup and the isolated demo, follow the commands in the [README](../README.md).
