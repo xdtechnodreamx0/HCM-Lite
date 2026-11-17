@@ -2408,6 +2408,13 @@ html[data-theme="disco"] .workspace-footer { color: var(--muted); }
 .demo-launcher-card > small { grid-column: 1 / -1; min-height: 25px; margin-top: 3px; color: var(--muted); font-size: 8.5px; line-height: 1.45; }
 .demo-launcher-card p { grid-column: 1 / -1; margin: 5px 0 10px; color: var(--subtle); font-size: 8px; line-height: 1.45; }
 .demo-launcher-card .button { grid-column: 1 / -1; justify-content: center; width: 100%; margin-top: auto; font-size: 9px; }
+.demo-launcher-sample .demo-launcher-grid { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); }
+.demo-launcher-sample .demo-launcher-card > small { min-height: 0; }
+.demo-launcher-meta { grid-column: 1 / -1; margin-top: 5px; color: var(--subtle); font-size: 8px; line-height: 1.4; }
+.demo-launcher-email { grid-column: 1 / -1; margin-top: 4px; overflow-wrap: anywhere; color: var(--ink); font-size: 8.5px; line-height: 1.4; }
+.demo-launcher-sample .demo-launcher-card p { margin-bottom: 8px; }
+.demo-launcher-sample-tag { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: 5px; margin-top: auto; padding-top: 9px; border-top: 1px dashed var(--line); color: var(--muted); font-size: 8px; font-weight: 650; }
+.demo-launcher-sample-tag svg { flex: 0 0 auto; color: var(--green); }
 .demo-launcher-foot { display: flex; align-items: flex-start; gap: 6px; margin-top: 10px; color: var(--muted); font-size: 8.5px; line-height: 1.5; }
 .demo-launcher-foot svg { flex: 0 0 auto; color: var(--green); }
 .demo-launcher-state { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 168px; border: 1px dashed #cbdccc; border-radius: 13px; color: var(--muted); font-size: 10px; }
@@ -2418,6 +2425,9 @@ html[data-theme="disco"] .workspace-footer { color: var(--muted); }
 .demo-launcher-unavailable p { margin: 4px 0 0; color: var(--muted); font-size: 9.5px; line-height: 1.55; }
 .demo-launcher-unavailable > a { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; color: var(--green-dark); font-size: 9.5px; font-weight: 700; text-decoration: none; }
 .demo-launcher-error { margin-top: 9px; }
+@media (max-width: 1120px) and (min-width: 801px) {
+  .demo-launcher-sample .demo-launcher-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 
 /* Customer demo portal */
 .customer-portal {

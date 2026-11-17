@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, CircleAlert, LoaderCircle, Sparkles, UserRoundCheck, UsersRound } from "lucide-react";
+import { ArrowRight, CircleAlert, LoaderCircle, Sparkles, UserRoundCheck } from "lucide-react";
 import { apiRequest, jsonBody } from "@/lib/api-client";
 import { apiMessage } from "@/lib/errors";
 
@@ -23,7 +23,75 @@ type DemoAccounts = {
   accounts: DemoAccount[];
 };
 
+type SampleAccount = DemoAccount & {
+  code: string;
+  joined: string;
+};
+
 const roleLabel: Record<string, string> = { ADMIN: "Admin", HR: "HR", EMPLOYEE: "Staff" };
+
+// Read-only roster for deployments without demo mode. Keep in sync with scripts/seed-demo.mjs.
+const sampleAccounts: SampleAccount[] = [
+  {
+    id: "sample_admin",
+    name: "Nadia Rahman",
+    email: "admin@northstar.demo",
+    role: "ADMIN",
+    title: "Managing Partner",
+    department: "People & Operations",
+    portal: "Company administration · payroll approvals · workspace settings",
+    code: "EMP-1000",
+    joined: "Jan 2020",
+  },
+  {
+    id: "sample_hr",
+    name: "Iqra Javed",
+    email: "hr@northstar.demo",
+    role: "HR",
+    title: "People Partner",
+    department: "People & Operations",
+    portal: "People operations · leave decisions · onboarding",
+    code: "EMP-1011",
+    joined: "Jul 2023",
+  },
+  {
+    id: "sample_employee",
+    name: "Sana Malik",
+    email: "employee@northstar.demo",
+    role: "EMPLOYEE",
+    title: "Team Lead",
+    department: "Product & Engineering",
+    portal: "Personal workspace · attendance · leave · payslips",
+    code: "EMP-1003",
+    joined: "Jun 2021",
+  },
+  {
+    id: "sample_taimur",
+    name: "Taimur Raza",
+    email: "taimur@northstar.demo",
+    role: "EMPLOYEE",
+    title: "Software Engineer",
+    department: "Product & Engineering",
+    portal: "Personal workspace · attendance · leave · payslips",
+    code: "EMP-1004",
+    joined: "Feb 2024",
+  },
+  {
+    id: "sample_sarmad",
+    name: "Sarmad Baig",
+    email: "sarmad@northstar.demo",
+    role: "EMPLOYEE",
+    title: "Finance Analyst",
+    department: "Finance",
+    portal: "Personal workspace · attendance · leave · payslips",
+    code: "EMP-1014",
+    joined: "May 2022",
+  },
+];
+
+function initials(name: string) {
+  return name.split(" ").filter(Boolean).map((part) => part[0]).slice(0, 2).join("");
+}
 
 export function DemoLauncher() {
   const router = useRouter();
@@ -54,14 +122,29 @@ export function DemoLauncher() {
   }
 
   if (!data) {
-    return <div className="demo-launcher-state"><LoaderCircle size={18} className="spin" /><span>Loading the live demo roles…</span></div>;
+    return <div className="demo-launcher-state"><LoaderCircle size={18} className="spin" /><span>Loading the demo team…</span></div>;
   }
 
   if (!data.enabled) {
-    return <div className="demo-launcher-unavailable">
-      <span className="demo-launcher-icon"><UsersRound size={19} /></span>
-      <div><strong>Live role portals are not enabled here.</strong><p>This deployment shows the read-only guest dashboard. On the demo deployment, one-click Admin, HR, and Employee portals appear here.</p></div>
-      <Link href="/login">Sign in instead <ArrowRight size={14} /></Link>
+    return <div className="demo-launcher demo-launcher-sample" id="live-portals">
+      <div className="demo-launcher-head">
+        <span><Sparkles size={14} /> SAMPLE ACCOUNTS · READ ONLY</span>
+        <small>Northstar Studio · fictional team</small>
+      </div>
+      <div className="demo-launcher-grid">
+        {sampleAccounts.map((account) => <article key={account.id} className="demo-launcher-card">
+          <span className="demo-launcher-avatar">{initials(account.name)}</span>
+          <span className="demo-launcher-role">{roleLabel[account.role] ?? account.role}</span>
+          <strong>{account.name}</strong>
+          <small>{account.title} · {account.department}</small>
+          <span className="demo-launcher-meta">{account.code} · Joined {account.joined}</span>
+          <span className="demo-launcher-email">{account.email}</span>
+          <p>{account.portal}</p>
+          <span className="demo-launcher-sample-tag"><UserRoundCheck size={12} /> Sample persona</span>
+        </article>)}
+      </div>
+      <div className="demo-launcher-foot"><span><UserRoundCheck size={14} /> These people, emails, and records are invented for the sample workspace. One-click live portals run only on the demo deployment; production workspaces stay clean for real teams.</span></div>
+      {error && <div className="inline-alert error-alert demo-launcher-error" role="alert">{error}</div>}
     </div>;
   }
 
@@ -80,7 +163,7 @@ export function DemoLauncher() {
     </div>
     <div className="demo-launcher-grid">
       {data.accounts.map((account) => <article key={account.id} className="demo-launcher-card">
-        <span className="demo-launcher-avatar">{account.name.split(" ").filter(Boolean).map((part) => part[0]).slice(0, 2).join("")}</span>
+        <span className="demo-launcher-avatar">{initials(account.name)}</span>
         <span className="demo-launcher-role">{roleLabel[account.role] ?? account.role}</span>
         <strong>{account.name}</strong>
         <small>{account.title}{account.department ? ` · ${account.department}` : ""}</small>
