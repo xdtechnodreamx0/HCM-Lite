@@ -1,6 +1,6 @@
 # Vercel deployment
 
-The source is in the [public GitHub repository](https://github.com/xdtechnodreamx0/HCM-Lite). Release commits `695ec75` and `52e9157` passed GitHub Actions CI runs `43852151391` and `43852571516` (install, lint, typecheck, 68 tests, build). Vercel deployed `52e9157` Ready as `dpl_AFY1DTxhQuAVWzVGfQPWrBvWKc5X`; the production alias `https://hcmlite-beta.vercel.app` later advanced through docs-only commits with no runtime change.
+The source is in the [public GitHub repository](https://github.com/xdtechnodreamx0/HCM-Lite). Release commits `695ec75`, `52e9157`, and `ffbc3c5` (guest demo roster) passed GitHub Actions CI runs `43852151391`, `43852571516`, and `44152382052` (install, lint, typecheck, 68 tests, build). Vercel deployed `52e9157` Ready as `dpl_AFY1DTxhQuAVWzVGfQPWrBvWKc5X`, then deployed `ffbc3c5` Ready as `dpl_FGWHuH7ryrcZJSME5aW4Bx5w1tA9`; the production alias `https://hcmlite-beta.vercel.app` serves that guest-roster release. Later docs-only commits may advance the alias without changing runtime code.
 
 A provider status confirms the deployment job finished; it does not confirm that the production database, sign-in, email, or AI integrations work. The 2026-11-16 release checks below covered the public boundary. Production SMTP delivery was separately verified by requesting a password reset for the workspace Admin and confirming the message arrived from the configured Gmail sender; completing that reset is still pending the owner's action. The authenticated demo sweep and payroll/payslip checks ran on an SSO-protected production-target deployment pointed at the isolated `hcm_lite_demo` database; that temporary deployment was removed after verification.
 
@@ -15,6 +15,15 @@ A provider status confirms the deployment job finished; it does not confirm that
 - `/api/demo/accounts` returned `enabled:false`.
 - Security headers: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), geolocation=(self), microphone=()`, `Cross-Origin-Opener-Policy: same-origin`, and HSTS. CSP is still not set.
 - Vercel's runtime-error query reported no runtime errors in the selected window. Hobby-plan runtime log retention did not return per-request function lines.
+
+## Guest demo roster (2026-11-18)
+
+- A production-mode build with `DEMO_MODE=false` rendered five fictional sample accounts at `/demo`: Nadia Rahman (Admin), Iqra Javed (HR), Sana Malik, Taimur Raza, and Sarmad Baig (Employees). Each card showed role, title, department, employee code, joining date, and email.
+- The page showed no live portal buttons, and `/api/demo/accounts` returned `enabled:false`. No demo records were read from or written to the production database.
+- The roster was checked at 1440, 1024, and 390 px in day, night, and disco themes with no horizontal overflow or console errors.
+- With `DEMO_MODE=true` and `MONGODB_DB=hcm_lite_demo`, the same build rendered five one-click portals, and Admin demo sign-in reached the seeded Northstar workspace.
+- Production verification: `https://hcmlite-beta.vercel.app/demo` rendered the five sample cards with zero live portal buttons. `/api/demo/accounts` returned `{"enabled":false,"accounts":[]}`, and `/api/session` returned `initialized:true`, `demoMode:false`, `emailConfigured:true`, and `user:null`.
+- A read-only production count returned 1 company, 0 employees, 1 user, 0 demo accounts, and 0 demo companies. No demo records were seeded or exposed. Screenshots: `prod-demo-team-light.png`, `prod-demo-team-night.png`, `prod-demo-team-disco.png`, and `prod-demo-team-mobile.png` in the audit folder.
 
 ## Required Vercel variables
 
@@ -62,7 +71,7 @@ If a first-run or sign-in request returns `403 Invalid request origin.`, confirm
 - Use a dedicated production database user with only the permissions the app needs. Configure Atlas network access with a supported, restricted egress setup; do not expose the database broadly.
 - Keep local fictional demo accounts (`admin@northstar.demo`, `hr@northstar.demo`, `employee@northstar.demo`, `taimur@northstar.demo`, `sarmad@northstar.demo`, password `12345`) on the loopback-only demo service. Never load them into a public production database.
 - The demo HR account is linked to the fictional Iqra Javed staff profile and has a seeded pending self-request for Admin review. This demonstrates HR self-service and segregation of duties; do not copy that stance to production without a deliberate policy decision.
-- The demo launcher (`/demo`), one-click login, and the seeded customer portal are gated by `DEMO_MODE=true` and seeded demo accounts. Outside demo mode, `/customer` serves a fixed fictional Northstar Studio snapshot so the public customer experience still works without exposing a database. Treat the seeded demo as an explicitly fake workspace; never load its accounts into a public production database.
+- The demo launcher (`/demo`), one-click login, and the seeded customer portal are gated by `DEMO_MODE=true` and seeded demo accounts. Outside demo mode, `/customer` serves a fixed fictional Northstar Studio snapshot so the public customer experience still works without exposing a database. Outside demo mode, `/demo` renders the same five personas from a static read-only roster in the client bundle; it does not query the demo or production database and cannot sign anyone in. Treat the seeded demo as an explicitly fake workspace; never load its accounts into a public production database.
 - Demo verification can use a production-target deployment with `--skip-domain`, `DEMO_MODE=true`, and `MONGODB_DB=hcm_lite_demo`. It must stay behind SSO deployment protection, must never receive the production alias, and should be removed after verification. Never point a demo deployment at the production database.
 - Use a separate empty database for previews and manual setup checks. Do not reset or seed a database containing real records.
 - Rotate database, session, Gemini, and Resend secrets through their providers if exposed. Changing `SESSION_SECRET` signs out existing users.
